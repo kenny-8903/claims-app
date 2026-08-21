@@ -1,0 +1,22 @@
+/devops/db-data
+/frontend/node_modules
+/backend/venv
+/backend/.venv
+.env
+backend/db/*.db
+backend/db/*.db-wal
+backend/db/*.db-shm
+backend/db/*.db-journal
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+
+# Editors / tools
+.idea/
+.vscode/
+.claude/
+.codegraph/
+.DS_Store

@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>預算審批系統 Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .tier-node { transition: all 0.3s ease; }
+    .tier-node:hover { transform: translateY(-4px); box-shadow: 0 10px 25px -5px rgba(59, 130, 246, 0.4); }
+    .fade-in { animation: fadeIn 0.4s ease-in-out; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  </style>
+</head>
+<body class="bg-slate-100 min-h-screen">
+  <!-- Header -->
+  <header class="bg-gradient-to-r from-blue-700 via-indigo-700 to-violet-700 text-white shadow-lg">
+    <div class="max-w-6xl mx-auto px-6 py-8">
+      <h1 class="text-3xl font-bold tracking-tight">💰 預算審批系統</h1>
+      <p class="mt-2 text-blue-100 text-sm">SQLite 持久化 · Threshold-Based Routing · 多層審批 · 卡關自動提醒</p>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-6 py-8 grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <!-- 左：申請單建立 -->
+    <section class="bg-white rounded-2xl shadow-md p-6 border border-slate-200">
+      <h2 class="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
+        <span class="w-2 h-2 rounded-full bg-blue-500 inline-block"></span>
+        申請單建立 (Submission)
+      </h2>
+
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-slate-600 mb-1">申請項目名稱 *</label>
+          <input type="text" id="title" placeholder="例如：採購筆記型電腦"
+                 class="w-full border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-slate-600 mb-1">總金額 ($) *</label>
+          <div class="relative">
+            <span class="absolute left-3 top-2.5 text-slate-400 font-semibold">$</span>
+            <input type="number" id="totalAmount" min="0" placeholder="例如 5000"
+                   class="w-full border border-slate-300 rounded-lg pl-8 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-slate-600 mb-1">部門</label>
+          <select id="department"
+                  class="w-full border border-slate-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <option value="IT">IT</option>
+            <option value="Marketing">Marketing</option>
+            <option value="HR">HR</option>
+            <option value="Finance">Finance</option>
+            <option value="Operations">Operations</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-slate-600 mb-1">業務理由 (Business Justification)</label>
+          <textarea id="justification" rows="2" placeholder="簡述採購理由"
+                    class="w-full border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-slate-600 mb-2">成本明細 (Line Items)</label>
+          <div id="lineItems" class="space-y-2">
+            <div class="flex gap-2">
+              <input type="text" placeholder="品項名稱" class="line-item-name flex-1 border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <input type="number" placeholder="成本" class="line-item-cost w-28 border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+          </div>
+          <button type="button" onclick="addLineItem()"
+                  class="mt-2 text-sm text-blue-600 hover:text-blue-800 font-medium">＋ 新增品項</button>
+        </div>
+
+        <label class="flex items-center gap-3 bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-3 cursor-pointer">
+          <input type="checkbox" id="isPreApproved" class="w-5 h-5 accent-emerald-600" />
+          <span class="text-sm text-emerald-800 font-medium">✔ 預算內 (pre-approved) — 自動 Bypass 財務審批 (Level 2)</span>
+        </label>
+
+        <button onclick="submitSubmission()"
+                class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg shadow-md transition-colors">
+          📝 建立申請單
+        </button>
+        <p id="submitMsg" class="hidden text-sm rounded-lg px-3 py-2"></p>
+
+        <!-- 審批流程預覽 -->
+        <div id="flowPreview" class="hidden bg-slate-50 border border-slate-200 rounded-xl p-4">
+          <p class="text-xs font-semibold text-slate-500 mb-2">審批關卡流程圖</p>
+          <div id="flowTimeline" class="flex flex-wrap items-center gap-2 justify-center"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 右：審批操作 + 卡關提醒 -->
+    <section class="space-y-6">
+      <!-- 審批操作 -->
+      <div class="bg-white rounded-2xl shadow-md p-6 border border-slate-200">
+        <h2 class="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span>
+          審批操作 (Review)
+        </h2>
+
+        <div class="space-y-4">
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-sm font-medium text-slate-600 mb-1">Request ID *</label>
+              <input type="number" id="requestId" min="1" placeholder="例如 1"
+                     class="w-full border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-slate-600 mb-1">目前關卡 (Level) *</label>
+              <input type="number" id="currentLevel" min="1" max="3" placeholder="例如 1"
+                     class="w-full border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-slate-600 mb-1">審批角色</label>
+            <select id="reviewerRole"
+                    class="w-full border border-slate-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+              <option value="TEAM_LEAD">Team Lead (Level 1)</option>
+              <option value="FINANCE">Finance (Level 2)</option>
+              <option value="EXECUTIVE">Executive (Level 3)</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-slate-600 mb-1">審批動作 *</label>
+            <div class="flex gap-3">
+              <button onclick="submitReview('APPROVE')"
+                      class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-lg shadow-md transition-colors">
+                ✅ APPROVE
+              </button>
+              <button onclick="submitReview('REJECT')"
+                      class="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold py-3 rounded-lg shadow-md transition-colors">
+                🚫 REJECT
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-slate-600 mb-1">備註 (Comment)</label>
+            <textarea id="comment" rows="2" placeholder="審批意見"
+                      class="w-full border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500"></textarea>
+          </div>
+
+          <p id="reviewMsg" class="hidden text-sm rounded-lg px-3 py-2"></p>
+        </div>
+      </div>
+
+      <!-- 卡關提醒 -->
+      <div class="bg-white rounded-2xl shadow-md p-6 border border-slate-200">
+        <h2 class="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-amber-500 inline-block"></span>
+          卡關提醒 (Stalled > 48h)
+        </h2>
+        <button onclick="loadStalled()"
+                class="w-full bg-amber-500 hover:bg-amber-600 text-white font-semibold py-2.5 rounded-lg shadow-md transition-colors">
+          ⏰ 檢查卡關申請
+        </button>
+        <div id="stalledList" class="mt-4 space-y-2"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="max-w-6xl mx-auto px-6 pb-8 text-center text-xs text-slate-400">
+    Budget Approval System · SQLite · Level 1/2/3 Routing · Pre-Approved Bypass · 48h Stall Reminder
+  </footer>
+
+  <script>
+    // ---- 審批關卡資訊 ----
+    const LEVEL_INFO = {
+      1: { label: 'Team Lead', color: 'bg-emerald-500' },
+      2: { label: 'Finance', color: 'bg-blue-500' },
+      3: { label: 'Executive', color: 'bg-violet-500' },
+    };
+
+    // ---- 前端鏡像後端 threshold routing（僅用於預覽） ----
+    function determineFlow(amount, isPreApproved) {
+      let levels = [];
+      if (amount <= 1000) levels = [1];
+      else if (amount <= 10000) levels = [1, 2];
+      else levels = [1, 2, 3];
+      if (isPreApproved) levels = levels.filter((l) => l !== 2);
+      return levels;
+    }
+
+    // ---- 動態新增 line item ----
+    function addLineItem() {
+      const container = document.getElementById('lineItems');
+      const row = document.createElement('div');
+      row.className = 'flex gap-2';
+      row.innerHTML = `
+        <input type="text" placeholder="品項名稱" class="line-item-name flex-1 border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        <input type="number" placeholder="成本" class="line-item-cost w-28 border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        <button type="button" onclick="this.parentElement.remove()" class="text-red-400 hover:text-red-600 text-lg px-1">✕</button>
+      `;
+      container.appendChild(row);
+    }
+
+    // ---- 即時更新流程預覽 ----
+    ['totalAmount', 'isPreApproved'].forEach((id) => {
+      document.getElementById(id).addEventListener('input', updateFlowPreview);
+    });
+    function updateFlowPreview() {
+      const amount = Number(document.getElementById('totalAmount').value);
+      const pre = document.getElementById('isPreApproved').checked;
+      const preview = document.getElementById('flowPreview');
+
+      if (!amount || amount <= 0) { preview.classList.add('hidden'); return; }
+
+      const levels = determineFlow(amount, pre);
+      const timeline = document.getElementById('flowTimeline');
+      timeline.innerHTML = '';
+
+      levels.forEach((level, idx) => {
+        const node = document.createElement('div');
+        node.className = 'tier-node flex flex-col items-center gap-1 bg-white border-2 border-slate-200 rounded-xl px-4 py-3 shadow-sm';
+        node.innerHTML = `
+          <span class="text-xs font-bold text-slate-400">Step ${idx + 1}</span>
+          <span class="w-10 h-10 rounded-full ${LEVEL_INFO[level].color} text-white flex items-center justify-center font-bold text-lg shadow">${level}</span>
+          <span class="text-sm font-semibold text-slate-700">${LEVEL_INFO[level].label}</span>
+        `;
+        timeline.appendChild(node);
+        if (idx < levels.length - 1) {
+          const arrow = document.createElement('span');
+          arrow.className = 'text-2xl font-bold text-slate-300';
+          arrow.textContent = '➔';
+          timeline.appendChild(arrow);
+        }
+      });
+      preview.classList.remove('hidden');
+    }
+
+    // ---- 建立申請單 ----
+    async function submitSubmission() {
+      const title = document.getElementById('title').value.trim();
+      const total_amount = Number(document.getElementById('totalAmount').value);
+      const department = document.getElementById('department').value;
+      const business_justification = document.getElementById('justification').value.trim();
+      const is_pre_approved = document.getElementById('isPreApproved').checked;
+      const msg = document.getElementById('submitMsg');
+
+      if (!title) return showMsg(msg, '請輸入申請項目名稱', 'error');
+      if (!total_amount || total_amount <= 0) return showMsg(msg, '請輸入有效總金額', 'error');
+
+      const items = Array.from(document.querySelectorAll('#lineItems .flex'))
+        .map((row) => ({
+          item_name: row.querySelector('.line-item-name').value.trim(),
+          cost: Number(row.querySelector('.line-item-cost').value),
+        }))
+        .filter((it) => it.item_name && it.cost > 0);
+
+      try {
+        const res = await fetch('/api/submissions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title, total_amount, department, business_justification, is_pre_approved, items }),
+        });
+        const data = await res.json();
+        if (res.ok) {
+          showMsg(msg, `✅ ${data.message} — Request ID: #${data.requestId}`, 'success');
+          document.getElementById('requestId').value = data.requestId;
+          updateFlowPreview();
+        } else {
+          showMsg(msg, `❌ ${data.error}`, 'error');
+        }
+      } catch (err) {
+        showMsg(msg, '⚠️ 無法連線後端 API', 'error');
+      }
+    }
+
+    // ---- 送審批 ----
+    async function submitReview(action) {
+      const requestId = Number(document.getElementById('requestId').value);
+      const currentLevel = Number(document.getElementById('currentLevel').value);
+      const reviewerRole = document.getElementById('reviewerRole').value;
+      const comment = document.getElementById('comment').value.trim();
+      const msg = document.getElementById('reviewMsg');
+
+      if (!requestId || !currentLevel) return showMsg(msg, '請輸入 Request ID 與目前關卡', 'error');
+      if (currentLevel < 1 || currentLevel > 3) return showMsg(msg, '關卡必須介於 1-3', 'error');
+
+      try {
+        const res = await fetch('/api/reviews', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ requestId, reviewerRole, currentLevel, action, comment }),
+        });
+        const data = await res.json();
+
+        if (res.ok) {
+          let txt = `✅ 審批完成 — 狀態: ${data.status}`;
+          if (data.nextLevel) txt += `，下一關: Level ${data.nextLevel} (${LEVEL_INFO[data.nextLevel].label})`;
+          showMsg(msg, txt, 'success');
+        } else {
+          showMsg(msg, `❌ ${data.error}`, 'error');
+        }
+      } catch (err) {
+        showMsg(msg, '⚠️ 無法連線後端 API', 'error');
+      }
+    }
+
+    // ---- 卡關檢查 ----
+    async function loadStalled() {
+      const list = document.getElementById('stalledList');
+      list.innerHTML = '<p class="text-slate-400 text-sm animate-pulse">⏳ 查詢中...</p>';
+      try {
+        const res = await fetch('/api/stalled-requests');
+        const data = await res.json();
+        const stalled = data.stalledRequests || [];
+
+        if (stalled.length === 0) {
+          list.innerHTML = '<p class="text-sm text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">✅ 目前沒有卡關超過 48 小時的申請</p>';
+        } else {
+          list.innerHTML = '';
+          stalled.forEach((r) => {
+            const card = document.createElement('div');
+            card.className = 'flex justify-between items-center bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-sm';
+            card.innerHTML = `
+              <div>
+                <p class="font-semibold text-amber-800">#${r.id} — ${r.title || '(無標題)'}</p>
+                <p class="text-xs text-amber-600">關卡 Level ${r.current_level} · 金額 $${Number(r.total_amount).toLocaleString()} · ${r.created_at}</p>
+              </div>
+              <span class="text-amber-600 font-bold">⏰ 48h+</span>
+            `;
+            list.appendChild(card);
+          });
+        }
+      } catch (err) {
+        list.innerHTML = '<p class="text-red-500 text-sm">⚠️ 查詢失敗</p>';
+      }
+    }
+
+    // ---- 訊息 helper ----
+    function showMsg(el, text, type) {
+      el.textContent = text;
+      el.className = type === 'error'
+        ? 'text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2'
+        : 'text-sm text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2';
+    }
+  </script>
+</body>
+</html>
