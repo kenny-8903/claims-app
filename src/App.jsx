@@ -108,10 +108,12 @@ const STEPS = [
 
 const EXPENSE_CATEGORIES = ['交通費', '辦公雜費', '餐飲應酬', '緊急採購']
 
-/* 測試帳號（登入切換用） */
+/* 測試帳號（登入用，密碼皆為 123456） */
 const TEST_ACCOUNTS = [
   {
     id: 't1',
+    username: 'Testing1',
+    password: '123456',
     name: 'Testing1',
     initials: 'T1',
     dept: 'Operations',
@@ -123,6 +125,8 @@ const TEST_ACCOUNTS = [
   },
   {
     id: 't2',
+    username: 'Testing2',
+    password: '123456',
     name: 'Testing2',
     initials: 'T2',
     dept: 'Operations',
@@ -134,6 +138,8 @@ const TEST_ACCOUNTS = [
   },
   {
     id: 't3',
+    username: 'Testing3',
+    password: '123456',
     name: 'Testing3',
     initials: 'T3',
     dept: 'Finance & Admin',
@@ -249,6 +255,9 @@ function App() {
   const [claims, setClaims] = useState(INITIAL_CLAIMS)
   const [employees, setEmployees] = useState(INITIAL_EMPLOYEES)
   const [actionMessage, setActionMessage] = useState('')
+  const [loginUsername, setLoginUsername] = useState('')
+  const [loginPassword, setLoginPassword] = useState('')
+  const [loginError, setLoginError] = useState('')
 
   const amountNum = parseFloat(amount) || 0
   const currentUser = TEST_ACCOUNTS.find((a) => a.id === authUserKey)
@@ -263,16 +272,35 @@ function App() {
     ]
   }
 
-  /* ===== 登入 / 登出 ===== */
-  const handleLogin = (key) => {
-    setAuthUserKey(key)
+  /* ===== 登入（帳號/密碼驗證）/ 登出 ===== */
+  const handleLogin = (username, password) => {
+    const account = TEST_ACCOUNTS.find(
+      (a) => a.username === username.trim() && a.password === password,
+    )
+    if (!account) {
+      setLoginError('帳號或密碼不正確')
+      return
+    }
+    setLoginError('')
+    setAuthUserKey(account.id)
     setActiveModule('new-claim')
     setActionMessage('')
     try {
-      localStorage.setItem(AUTH_STORAGE_KEY, key)
+      localStorage.setItem(AUTH_STORAGE_KEY, account.id)
     } catch {
       /* localStorage 不可用時忽略 */
     }
+  }
+
+  const handleLoginSubmit = (e) => {
+    e.preventDefault()
+    handleLogin(loginUsername, loginPassword)
+  }
+
+  const fillDemoAccount = (account) => {
+    setLoginUsername(account.username)
+    setLoginPassword(account.password)
+    setLoginError('')
   }
 
   const handleLogout = () => {
@@ -393,31 +421,56 @@ function App() {
             <h1 className="login-card__title">City Service Group</h1>
             <p className="login-card__subtitle">Executive Workflow Portal</p>
           </div>
-          <p className="login-card__intro">請選擇測試帳號登入以使用報銷系統</p>
-          <div className="login-accounts">
-            {TEST_ACCOUNTS.map((account) => {
-              const lvl = LEVEL_CONFIG[account.accessLevel]
-              return (
+          <form className="login-form" onSubmit={handleLoginSubmit}>
+            <div className="login-form__field">
+              <label htmlFor="loginUsername">Username（使用者名稱）</label>
+              <input
+                id="loginUsername"
+                type="text"
+                value={loginUsername}
+                onChange={(e) => setLoginUsername(e.target.value)}
+                placeholder="請輸入使用者名稱"
+                autoComplete="username"
+              />
+            </div>
+            <div className="login-form__field">
+              <label htmlFor="loginPassword">Password（密碼）</label>
+              <input
+                id="loginPassword"
+                type="password"
+                value={loginPassword}
+                onChange={(e) => setLoginPassword(e.target.value)}
+                placeholder="請輸入密碼"
+                autoComplete="current-password"
+              />
+            </div>
+            {loginError && <p className="login-form__error">{loginError}</p>}
+            <button type="submit" className="login-form__submit">
+              登入（Login）
+            </button>
+          </form>
+
+          <div className="login-demo">
+            <p className="login-demo__title">Demo Accounts 快速點擊填入</p>
+            <div className="login-demo__list">
+              {TEST_ACCOUNTS.map((account) => (
                 <button
                   key={account.id}
                   type="button"
-                  className="login-account-btn"
-                  onClick={() => handleLogin(account.id)}
+                  className="login-demo__btn"
+                  onClick={() => fillDemoAccount(account)}
                 >
-                  <span className="login-account-btn__avatar">
-                    {account.initials}
+                  <span className="login-demo__initials">{account.initials}</span>
+                  <span className="login-demo__body">
+                    <span className="login-demo__name">{account.username}</span>
+                    <span className="login-demo__role">
+                      {account.roleLabel}（{account.dept}）
+                    </span>
                   </span>
-                  <span className="login-account-btn__body">
-                    <span className="login-account-btn__name">{account.name}</span>
-                    <span className="login-account-btn__role">{account.roleLabel}</span>
-                    <span className="login-account-btn__dept">{account.dept}</span>
-                  </span>
-                  <span className="login-account-btn__level">{lvl.label}</span>
                 </button>
-              )
-            })}
+              ))}
+            </div>
           </div>
-          <p className="login-card__note">Tier 1 Staff · Tier 2 Manager · Tier 3 Finance</p>
         </div>
       </div>
     )
