@@ -34,17 +34,6 @@ const IconFile = (p) => (
   </SvgIcon>
 )
 
-const IconList = (p) => (
-  <SvgIcon {...p}>
-    <line x1="8" y1="6" x2="21" y2="6" />
-    <line x1="8" y1="12" x2="21" y2="12" />
-    <line x1="8" y1="18" x2="21" y2="18" />
-    <line x1="3" y1="6" x2="3.01" y2="6" />
-    <line x1="3" y1="12" x2="3.01" y2="12" />
-    <line x1="3" y1="18" x2="3.01" y2="18" />
-  </SvgIcon>
-)
-
 const IconInbox = (p) => (
   <SvgIcon {...p}>
     <polyline points="22 12 16 12 14 15 10 15 8 12 2 12" />
@@ -102,14 +91,6 @@ const IconDollar = (p) => (
   </SvgIcon>
 )
 
-const IconBuilding = (p) => (
-  <SvgIcon {...p}>
-    <rect x="4" y="2" width="16" height="20" rx="2" />
-    <path d="M9 22v-4h6v4" />
-    <path d="M8 6h.01M12 6h.01M16 6h.01M8 10h.01M12 10h.01M16 10h.01" />
-  </SvgIcon>
-)
-
 const IconHistory = (p) => (
   <SvgIcon {...p}>
     <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
@@ -135,7 +116,7 @@ const TEST_ACCOUNTS = [
     initials: 'T1',
     dept: 'Operations',
     accessLevel: 1,
-    roleLabel: 'User',
+    roleLabel: 'Tier 1 Staff',
     isLevel1: false,
     isLevel2: false,
     desc: '普通申請人：可填寫報銷單並追蹤審批狀態',
@@ -146,7 +127,7 @@ const TEST_ACCOUNTS = [
     initials: 'T2',
     dept: 'Operations',
     accessLevel: 2,
-    roleLabel: 'Dept Manager',
+    roleLabel: 'Tier 2 Manager',
     isLevel1: true,
     isLevel2: false,
     desc: '第 1 層審批人：可審批待部門主管審批的單據',
@@ -157,7 +138,7 @@ const TEST_ACCOUNTS = [
     initials: 'T3',
     dept: 'Finance & Admin',
     accessLevel: 3,
-    roleLabel: 'Finance Manager / Admin',
+    roleLabel: 'Tier 3 Finance',
     isLevel1: false,
     isLevel2: true,
     desc: '第 2 層審批人：可審批待財務審批的單據及管理權限',
@@ -170,6 +151,9 @@ const LEVEL_CONFIG = {
   2: { label: 'Level 2', role: '審批人', sub: 'Approver' },
   3: { label: 'Level 3', role: '系統管理員', sub: 'Admin' },
 }
+
+/* 登入持久化 key */
+const AUTH_STORAGE_KEY = 'csg_auth_user'
 
 const MENU_ITEMS = [
   {
@@ -228,113 +212,31 @@ const STATUS_CONFIG = {
 
 /* 預置員工資料（權限管理用） */
 const INITIAL_EMPLOYEES = [
-  {
-    id: 'emp1',
-    name: 'Testing1',
-    initials: 'T1',
-    dept: 'Operations',
-    accessLevel: 1,
-    isLevel1: false,
-    isLevel2: false,
-  },
-  {
-    id: 'emp2',
-    name: 'Testing2',
-    initials: 'T2',
-    dept: 'Operations',
-    accessLevel: 2,
-    isLevel1: true,
-    isLevel2: false,
-  },
-  {
-    id: 'emp3',
-    name: 'Testing3',
-    initials: 'T3',
-    dept: 'Finance & Admin',
-    accessLevel: 3,
-    isLevel1: false,
-    isLevel2: true,
-  },
-  {
-    id: 'emp4',
-    name: 'Sarah Wong',
-    initials: 'SW',
-    dept: 'Finance',
-    accessLevel: 2,
-    isLevel1: false,
-    isLevel2: true,
-  },
-  {
-    id: 'emp5',
-    name: 'Michael Chan',
-    initials: 'MC',
-    dept: 'Operations',
-    accessLevel: 2,
-    isLevel1: true,
-    isLevel2: false,
-  },
-  {
-    id: 'emp6',
-    name: 'Grace Leung',
-    initials: 'GL',
-    dept: 'HR',
-    accessLevel: 1,
-    isLevel1: false,
-    isLevel2: false,
-  },
+  { id: 'emp1', name: 'Testing1', initials: 'T1', dept: 'Operations', accessLevel: 1, isLevel1: false, isLevel2: false },
+  { id: 'emp2', name: 'Testing2', initials: 'T2', dept: 'Operations', accessLevel: 2, isLevel1: true, isLevel2: false },
+  { id: 'emp3', name: 'Testing3', initials: 'T3', dept: 'Finance & Admin', accessLevel: 3, isLevel1: false, isLevel2: true },
+  { id: 'emp4', name: 'Sarah Wong', initials: 'SW', dept: 'Finance', accessLevel: 2, isLevel1: false, isLevel2: true },
+  { id: 'emp5', name: 'Michael Chan', initials: 'MC', dept: 'Operations', accessLevel: 2, isLevel1: true, isLevel2: false },
+  { id: 'emp6', name: 'Grace Leung', initials: 'GL', dept: 'HR', accessLevel: 1, isLevel1: false, isLevel2: false },
 ]
 
 /* 預置單據（涵蓋各審批階段） */
 const INITIAL_CLAIMS = [
-  {
-    id: 'CL-2026-001',
-    applicant: 'Chen Ka Fai',
-    applicantInitials: 'CK',
-    department: 'Operations',
-    category: '交通費',
-    amount: 860,
-    date: '2026-08-14',
-    remark: '客戶會議往返的士費用',
-    status: 'pending_1st',
-  },
-  {
-    id: 'CL-2026-002',
-    applicant: 'Lau Pui Yan',
-    applicantInitials: 'LP',
-    department: 'Finance',
-    category: '辦公雜費',
-    amount: 1240,
-    date: '2026-08-15',
-    remark: '辦公室文具及打印耗材',
-    status: 'pending_1st',
-  },
-  {
-    id: 'CL-2026-003',
-    applicant: 'Ng Wing Sze',
-    applicantInitials: 'NW',
-    department: 'Operations',
-    category: '餐飲應酬',
-    amount: 3200,
-    date: '2026-08-16',
-    remark: '與供應商聚餐商討合約',
-    status: 'pending_2nd',
-  },
-  {
-    id: 'CL-2026-004',
-    applicant: 'Lee Ka Ho',
-    applicantInitials: 'LH',
-    department: 'HR',
-    category: '緊急採購',
-    amount: 6800,
-    date: '2026-08-17',
-    remark: '緊急更換辦公室影印機',
-    status: 'pending_2nd',
-  },
+  { id: 'CL-2026-001', applicant: 'Chen Ka Fai', applicantInitials: 'CK', department: 'Operations', category: '交通費', amount: 860, date: '2026-08-14', remark: '客戶會議往返的士費用', status: 'pending_1st' },
+  { id: 'CL-2026-002', applicant: 'Lau Pui Yan', applicantInitials: 'LP', department: 'Finance', category: '辦公雜費', amount: 1240, date: '2026-08-15', remark: '辦公室文具及打印耗材', status: 'pending_1st' },
+  { id: 'CL-2026-003', applicant: 'Ng Wing Sze', applicantInitials: 'NW', department: 'Operations', category: '餐飲應酬', amount: 3200, date: '2026-08-16', remark: '與供應商聚餐商討合約', status: 'pending_2nd' },
+  { id: 'CL-2026-004', applicant: 'Lee Ka Ho', applicantInitials: 'LH', department: 'HR', category: '緊急採購', amount: 6800, date: '2026-08-17', remark: '緊急更換辦公室影印機', status: 'pending_2nd' },
 ]
 
 function App() {
-  /* 目前登入測試帳號（預設 Testing1） */
-  const [currentUserKey, setCurrentUserKey] = useState('t1')
+  /* 登入狀態：從 localStorage 讀取，未登入為 null */
+  const [authUserKey, setAuthUserKey] = useState(() => {
+    try {
+      return localStorage.getItem(AUTH_STORAGE_KEY)
+    } catch {
+      return null
+    }
+  })
   const [activeModule, setActiveModule] = useState('new-claim')
   const [currentStep, setCurrentStep] = useState(1)
   const [applicant, setApplicant] = useState('')
@@ -349,46 +251,38 @@ function App() {
   const [actionMessage, setActionMessage] = useState('')
 
   const amountNum = parseFloat(amount) || 0
-  const currentUser = TEST_ACCOUNTS.find((a) => a.id === currentUserKey)
-  const currentLevel = LEVEL_CONFIG[currentUser.accessLevel]
-
-  /* 依權限層級篩選可見選單 */
-  const visibleMenu = MENU_ITEMS.filter(
-    (item) => item.minLevel <= currentUser.accessLevel,
-  )
+  const currentUser = TEST_ACCOUNTS.find((a) => a.id === authUserKey)
+  const currentLevel = currentUser ? LEVEL_CONFIG[currentUser.accessLevel] : null
 
   /* 動態計算審批路徑（雙層） */
   const approvalRoute = () => {
     if (!amount || amountNum <= 0) return []
-    const route = [
+    return [
       { id: 'l1', name: '第 1 層：部門主管', code: '1ST', icon: IconUsers },
+      { id: 'l2', name: '第 2 層：財務經理', code: '2ND', icon: IconDollar },
     ]
-    route.push({
-      id: 'l2',
-      name: '第 2 層：財務經理',
-      code: '2ND',
-      icon: IconDollar,
-    })
-    return route
   }
 
-  const routeTier = () => {
-    if (!amount || amountNum <= 0) return null
-    return '雙層審批'
-  }
-
-  /* 切換測試帳號時自動導向該角色預設模組 */
-  const handleAccountChange = (e) => {
-    const key = e.target.value
-    const account = TEST_ACCOUNTS.find((a) => a.id === key)
-    setCurrentUserKey(key)
+  /* ===== 登入 / 登出 ===== */
+  const handleLogin = (key) => {
+    setAuthUserKey(key)
+    setActiveModule('new-claim')
     setActionMessage('')
-    if (account.accessLevel === 2) {
-      setActiveModule('pending')
-    } else if (account.accessLevel === 3) {
-      setActiveModule('pending')
-    } else {
-      setActiveModule('new-claim')
+    try {
+      localStorage.setItem(AUTH_STORAGE_KEY, key)
+    } catch {
+      /* localStorage 不可用時忽略 */
+    }
+  }
+
+  const handleLogout = () => {
+    setAuthUserKey(null)
+    setActiveModule('new-claim')
+    setActionMessage('')
+    try {
+      localStorage.removeItem(AUTH_STORAGE_KEY)
+    } catch {
+      /* localStorage 不可用時忽略 */
     }
   }
 
@@ -454,29 +348,14 @@ function App() {
   }
 
   /* ===== 多級審批動作 ===== */
-  /* Testing2（第 1 層）看到 pending_1st */
-  const pendingForUser = claims.filter(
-    (c) =>
-      c.status === 'pending_1st' && currentUser.isLevel1,
-  )
-  /* Testing3（第 2 層）看到 pending_2nd */
-  const pending2ndForUser = claims.filter(
-    (c) =>
-      c.status === 'pending_2nd' && currentUser.isLevel2,
-  )
-
   const handleApprove = (id) => {
     const claim = claims.find((c) => c.id === id)
     if (!claim) return
     if (claim.status === 'pending_1st' && currentUser.isLevel1) {
       setClaims((prev) =>
-        prev.map((c) =>
-          c.id === id ? { ...c, status: 'pending_2nd' } : c,
-        ),
+        prev.map((c) => (c.id === id ? { ...c, status: 'pending_2nd' } : c)),
       )
-      setActionMessage(
-        `單據 ${id} 已通過第 1 層審批，狀態變更為「待財務審批」。`,
-      )
+      setActionMessage(`單據 ${id} 已通過第 1 層審批，狀態變更為「待財務審批」。`)
     } else if (claim.status === 'pending_2nd' && currentUser.isLevel2) {
       setClaims((prev) =>
         prev.map((c) => (c.id === id ? { ...c, status: 'approved' } : c)),
@@ -495,24 +374,59 @@ function App() {
   /* ===== 權限管理動作（Level 3） ===== */
   const handleTogglePermission = (empId, tier) => {
     setEmployees((prev) =>
-      prev.map((emp) =>
-        emp.id === empId
-          ? { ...emp, [tier]: !emp[tier] }
-          : emp,
-      ),
+      prev.map((emp) => (emp.id === empId ? { ...emp, [tier]: !emp[tier] } : emp)),
     )
     const emp = employees.find((e) => e.id === empId)
     if (emp) {
-      const tierLabel =
-        tier === 'isLevel1' ? '第 1 層審批權限' : '第 2 層審批權限'
-      setActionMessage(
-        `${emp.name} 的${tierLabel}已${emp[tier] ? '移除' : '啟用'}。`,
-      )
+      const tierLabel = tier === 'isLevel1' ? '第 1 層審批權限' : '第 2 層審批權限'
+      setActionMessage(`${emp.name} 的${tierLabel}已${emp[tier] ? '移除' : '啟用'}。`)
     }
   }
 
-  /* ===== 各角色檢視資料 ===== */
-  const myClaims = claims.filter((c) => c.applicant === currentUser.name)
+  /* ===== 未登入：顯示 Login 頁面 ===== */
+  if (!currentUser) {
+    return (
+      <div className="login-page">
+        <div className="login-card">
+          <div className="login-card__brand">
+            <div className="login-card__logo">CSG</div>
+            <h1 className="login-card__title">City Service Group</h1>
+            <p className="login-card__subtitle">Executive Workflow Portal</p>
+          </div>
+          <p className="login-card__intro">請選擇測試帳號登入以使用報銷系統</p>
+          <div className="login-accounts">
+            {TEST_ACCOUNTS.map((account) => {
+              const lvl = LEVEL_CONFIG[account.accessLevel]
+              return (
+                <button
+                  key={account.id}
+                  type="button"
+                  className="login-account-btn"
+                  onClick={() => handleLogin(account.id)}
+                >
+                  <span className="login-account-btn__avatar">
+                    {account.initials}
+                  </span>
+                  <span className="login-account-btn__body">
+                    <span className="login-account-btn__name">{account.name}</span>
+                    <span className="login-account-btn__role">{account.roleLabel}</span>
+                    <span className="login-account-btn__dept">{account.dept}</span>
+                  </span>
+                  <span className="login-account-btn__level">{lvl.label}</span>
+                </button>
+              )
+            })}
+          </div>
+          <p className="login-card__note">Tier 1 Staff · Tier 2 Manager · Tier 3 Finance</p>
+        </div>
+      </div>
+    )
+  }
+
+  /* ===== 登入後的檢視資料（依目前使用者權限） ===== */
+  const visibleMenu = MENU_ITEMS.filter((item) => item.minLevel <= currentUser.accessLevel)
+  const pendingForUser = claims.filter((c) => c.status === 'pending_1st' && currentUser.isLevel1)
+  const pending2ndForUser = claims.filter((c) => c.status === 'pending_2nd' && currentUser.isLevel2)
   const visiblePending =
     currentUser.isLevel1 && currentUser.isLevel2
       ? [...pendingForUser, ...pending2ndForUser]
@@ -521,10 +435,10 @@ function App() {
         : currentUser.isLevel2
           ? pending2ndForUser
           : []
-  const route = approvalRoute()
-
+  const myClaims = claims.filter((c) => c.applicant === currentUser.name)
   const level1Count = employees.filter((e) => e.isLevel1).length
   const level2Count = employees.filter((e) => e.isLevel2).length
+  const route = approvalRoute()
 
   return (
     <div className="pc-shell">
@@ -553,15 +467,12 @@ function App() {
           <p className="sidebar__section-title">MODULES</p>
           {visibleMenu.map((item) => {
             const ItemIcon = item.icon
-            const pendingCount =
-              item.id === 'pending' ? visiblePending.length : 0
+            const pendingCount = item.id === 'pending' ? visiblePending.length : 0
             return (
               <button
                 key={item.id}
                 type="button"
-                className={`nav-item ${
-                  activeModule === item.id ? 'nav-item--active' : ''
-                }`}
+                className={`nav-item ${activeModule === item.id ? 'nav-item--active' : ''}`}
                 onClick={() => handleModuleClick(item)}
               >
                 <ItemIcon size={17} />
@@ -569,9 +480,7 @@ function App() {
                   <span className="nav-item__label">{item.label}</span>
                   <span className="nav-item__sub">{item.sub}</span>
                 </span>
-                {pendingCount > 0 && (
-                  <span className="nav-item__badge">{pendingCount}</span>
-                )}
+                {pendingCount > 0 && <span className="nav-item__badge">{pendingCount}</span>}
               </button>
             )
           })}
@@ -589,50 +498,41 @@ function App() {
 
       {/* ===== 主內容區 ===== */}
       <main className="pc-main">
-        {/* Topbar：標題 + 測試帳號切換 */}
+        {/* Topbar：標題 + 登入者資訊 + Logout */}
         <header className="topbar">
           <div className="topbar__title">
             <h2 className="topbar__heading">Petty Cash Reimbursement</h2>
-            <p className="topbar__sub">
-              雙層多級審批架構 · Two-Tier Multi-Stage Approval
-            </p>
+            <p className="topbar__sub">雙層多級審批架構 · Two-Tier Multi-Stage Approval</p>
           </div>
-          <div className="role-switch">
-            <span className="role-switch__label">測試帳號</span>
-            <select
-              className="role-switch__select"
-              value={currentUserKey}
-              onChange={handleAccountChange}
-            >
-              <option value="t1">Testing1：User（申請人）</option>
-              <option value="t2">
-                Testing2：Dept Manager（第 1 層審批）
-              </option>
-              <option value="t3">
-                Testing3：Finance Manager + Admin（第 2 層審批）
-              </option>
-            </select>
+          <div className="auth-bar">
+            <div className="auth-bar__user">
+              <span className="auth-bar__avatar">{currentUser.initials}</span>
+              <div className="auth-bar__info">
+                <span className="auth-bar__name">{currentUser.name}</span>
+                <span className="auth-bar__role">
+                  {currentUser.roleLabel} · {currentLevel.label}
+                </span>
+              </div>
+            </div>
+            <button type="button" className="btn-logout" onClick={handleLogout}>
+              Logout（登出）
+            </button>
           </div>
         </header>
 
         {/* 目前權限提示條 */}
         <div className="level-strip">
           <span className="level-strip__tag">{currentLevel.label}</span>
-          <span className="level-strip__role">
-            {currentUser.name}（{currentUser.roleLabel}）
-          </span>
+          <span className="level-strip__role">{currentUser.name}（{currentUser.roleLabel}）</span>
           <span className="level-strip__desc">{currentUser.desc}</span>
         </div>
 
         {/* 操作結果提示 */}
-        {actionMessage && (
-          <div className="action-toast">{actionMessage}</div>
-        )}
+        {actionMessage && <div className="action-toast">{actionMessage}</div>}
 
         {/* ===== 填寫報銷單 ===== */}
         {activeModule === 'new-claim' && (
           <>
-            {/* Stepper */}
             <nav className="stepper" aria-label="申請進度">
               {STEPS.map((step, index) => (
                 <div
@@ -642,15 +542,9 @@ function App() {
                   } ${currentStep > step.id ? 'stepper__item--done' : ''}`}
                 >
                   <div className="stepper__circle">
-                    {currentStep > step.id ? (
-                      <IconCheck size={16} />
-                    ) : (
-                      <span>{step.id}</span>
-                    )}
+                    {currentStep > step.id ? <IconCheck size={16} /> : <span>{step.id}</span>}
                   </div>
-                  <span className="stepper__label">
-                    Step {step.id}（{step.label}）
-                  </span>
+                  <span className="stepper__label">Step {step.id}（{step.label}）</span>
                   {index < STEPS.length - 1 && (
                     <span className="stepper__connector" aria-hidden="true" />
                   )}
@@ -658,15 +552,10 @@ function App() {
               ))}
             </nav>
 
-            {/* 報銷申請表 */}
             <section className="pc-card">
               <div className="pc-card__header">
                 <h2 className="pc-card__title">Petty Cash 報銷申請表</h2>
-                <button
-                  type="button"
-                  className="btn-load"
-                  onClick={loadExample}
-                >
+                <button type="button" className="btn-load" onClick={loadExample}>
                   載入 Petty Cash 範例
                 </button>
               </div>
@@ -682,7 +571,6 @@ function App() {
                     placeholder={currentUser.name}
                   />
                 </div>
-
                 <div className="pc-field">
                   <label htmlFor="department">部門</label>
                   <input
@@ -693,23 +581,15 @@ function App() {
                     placeholder={currentUser.dept}
                   />
                 </div>
-
                 <div className="pc-field">
                   <label htmlFor="category">費用類別</label>
-                  <select
-                    id="category"
-                    value={category}
-                    onChange={(e) => setCategory(e.target.value)}
-                  >
+                  <select id="category" value={category} onChange={(e) => setCategory(e.target.value)}>
                     <option value="">請選擇類別</option>
                     {EXPENSE_CATEGORIES.map((c) => (
-                      <option key={c} value={c}>
-                        {c}
-                      </option>
+                      <option key={c} value={c}>{c}</option>
                     ))}
                   </select>
                 </div>
-
                 <div className="pc-field">
                   <label htmlFor="amount">報銷總金額（HKD）</label>
                   <div className="pc-input-group">
@@ -726,7 +606,6 @@ function App() {
                     />
                   </div>
                 </div>
-
                 <div className="pc-field">
                   <label htmlFor="expenseDate">單據日期</label>
                   <input
@@ -754,24 +633,17 @@ function App() {
                 <label>單據上載</label>
                 <div className="upload-area">
                   <div className="upload-area__inner">
-                    <span className="upload-area__icon">
-                      <IconUpload size={26} />
-                    </span>
+                    <span className="upload-area__icon"><IconUpload size={26} /></span>
                     <p className="upload-area__text">
-                      拖曳檔案至此，或{' '}
-                      <span className="upload-area__link">瀏覽檔案</span>
+                      拖曳檔案至此，或 <span className="upload-area__link">瀏覽檔案</span>
                     </p>
-                    <p className="upload-area__hint">
-                      支援 PDF / JPG / PNG，最多 5MB
-                    </p>
+                    <p className="upload-area__hint">支援 PDF / JPG / PNG，最多 5MB</p>
                   </div>
                   {receipts.length > 0 && (
                     <ul className="file-list">
                       {receipts.map((file) => (
                         <li key={file} className="file-chip">
-                          <span className="file-chip__icon">
-                            <IconFile size={16} />
-                          </span>
+                          <span className="file-chip__icon"><IconFile size={16} /></span>
                           <span className="file-chip__name">{file}</span>
                           <button
                             type="button"
@@ -796,9 +668,7 @@ function App() {
                 <>
                   <p className="routing-card__tier">
                     目前金額 HK${amountNum.toLocaleString()}
-                    <span className="routing-card__tier-badge">
-                      {routeTier()}
-                    </span>
+                    <span className="routing-card__tier-badge">雙層審批</span>
                   </p>
                   <div className="routing-track">
                     {route.map((step) => {
@@ -806,20 +676,12 @@ function App() {
                       return (
                         <div key={step.id} className="routing-node">
                           <div className="routing-node__card">
-                            <span className="routing-node__icon">
-                              <StepIcon size={16} />
-                            </span>
-                            <span className="routing-node__name">
-                              {step.name}
-                            </span>
-                            <span className="routing-node__code">
-                              {step.code}
-                            </span>
+                            <span className="routing-node__icon"><StepIcon size={16} /></span>
+                            <span className="routing-node__name">{step.name}</span>
+                            <span className="routing-node__code">{step.code}</span>
                           </div>
                           {step.id !== route[route.length - 1].id && (
-                            <span className="routing-node__arrow">
-                              <IconArrow size={16} />
-                            </span>
+                            <span className="routing-node__arrow"><IconArrow size={16} /></span>
                           )}
                         </div>
                       )
@@ -839,15 +701,9 @@ function App() {
 
             {/* 按鈕列 */}
             <footer className="pc-footer">
-              <button type="button" className="btn-save" onClick={saveDraft}>
-                儲存草稿
-              </button>
-              <button type="button" className="btn-clear" onClick={clearForm}>
-                清除表單
-              </button>
-              <button type="button" className="btn-submit" onClick={submitForm}>
-                下一步 / 遞交申請
-              </button>
+              <button type="button" className="btn-save" onClick={saveDraft}>儲存草稿</button>
+              <button type="button" className="btn-clear" onClick={clearForm}>清除表單</button>
+              <button type="button" className="btn-submit" onClick={submitForm}>下一步 / 遞交申請</button>
             </footer>
           </>
         )}
@@ -859,9 +715,7 @@ function App() {
               <h2 className="pc-card__title">我的申請紀錄</h2>
             </div>
             {myClaims.length === 0 ? (
-              <p className="empty-state">
-                目前沒有已提交的申請紀錄。請先前往「填寫報銷單」遞交申請。
-              </p>
+              <p className="empty-state">目前沒有已提交的申請紀錄。請先前往「填寫報銷單」遞交申請。</p>
             ) : (
               <table className="data-table">
                 <thead>
@@ -885,10 +739,7 @@ function App() {
                         <td>{c.date}</td>
                         <td className="data-table__remark">{c.remark}</td>
                         <td>
-                          <span
-                            className={`status-badge ${status.className}`}
-                            title={status.en}
-                          >
+                          <span className={`status-badge ${status.className}`} title={status.en}>
                             {status.label}
                           </span>
                         </td>
@@ -907,25 +758,17 @@ function App() {
             <div className="pc-card__header">
               <h2 className="pc-card__title">待我審批</h2>
               <div className="pending-meta">
-                <span className="pending-count">
-                  共 {visiblePending.length} 筆待處理
-                </span>
+                <span className="pending-count">共 {visiblePending.length} 筆待處理</span>
                 {currentUser.isLevel1 && (
-                  <span className="tier-chip tier-chip--1st">
-                    第 1 層：部門主管
-                  </span>
+                  <span className="tier-chip tier-chip--1st">第 1 層：部門主管</span>
                 )}
                 {currentUser.isLevel2 && (
-                  <span className="tier-chip tier-chip--2nd">
-                    第 2 層：財務經理
-                  </span>
+                  <span className="tier-chip tier-chip--2nd">第 2 層：財務經理</span>
                 )}
               </div>
             </div>
             {visiblePending.length === 0 ? (
-              <p className="empty-state">
-                目前沒有符合您審批權限的單據。
-              </p>
+              <p className="empty-state">目前沒有符合您審批權限的單據。</p>
             ) : (
               <table className="data-table">
                 <thead>
@@ -949,9 +792,7 @@ function App() {
                         <td className="data-table__id">{c.id}</td>
                         <td>
                           <span className="approver-cell">
-                            <span className="approver-cell__avatar">
-                              {c.applicantInitials}
-                            </span>
+                            <span className="approver-cell__avatar">{c.applicantInitials}</span>
                             {c.applicant}
                           </span>
                         </td>
@@ -961,29 +802,15 @@ function App() {
                         <td>{c.date}</td>
                         <td className="data-table__remark">{c.remark}</td>
                         <td>
-                          <span
-                            className={`status-badge ${status.className}`}
-                          >
-                            {status.label}
-                          </span>
+                          <span className={`status-badge ${status.className}`}>{status.label}</span>
                         </td>
                         <td>
                           <div className="action-buttons">
-                            <button
-                              type="button"
-                              className="btn-approve"
-                              onClick={() => handleApprove(c.id)}
-                            >
-                              <IconCheck size={14} />
-                              同意
+                            <button type="button" className="btn-approve" onClick={() => handleApprove(c.id)}>
+                              <IconCheck size={14} /> 同意
                             </button>
-                            <button
-                              type="button"
-                              className="btn-reject"
-                              onClick={() => handleReject(c.id)}
-                            >
-                              <IconClose size={14} />
-                              駁回
+                            <button type="button" className="btn-reject" onClick={() => handleReject(c.id)}>
+                              <IconClose size={14} /> 駁回
                             </button>
                           </div>
                         </td>
@@ -1002,12 +829,8 @@ function App() {
             <div className="pc-card__header">
               <h2 className="pc-card__title">權限管理</h2>
               <div className="pending-meta">
-                <span className="pending-count">
-                  {level1Count} 位一級審批人
-                </span>
-                <span className="pending-count">
-                  {level2Count} 位二級審批人
-                </span>
+                <span className="pending-count">{level1Count} 位一級審批人</span>
+                <span className="pending-count">{level2Count} 位二級審批人</span>
               </div>
             </div>
             <table className="data-table">
@@ -1027,17 +850,13 @@ function App() {
                     <tr key={emp.id}>
                       <td>
                         <span className="approver-cell">
-                          <span className="approver-cell__avatar">
-                            {emp.initials}
-                          </span>
+                          <span className="approver-cell__avatar">{emp.initials}</span>
                           {emp.name}
                         </span>
                       </td>
                       <td>{emp.dept}</td>
                       <td>
-                        <span
-                          className={`role-tag role-tag--level-${emp.accessLevel}`}
-                        >
+                        <span className={`role-tag role-tag--level-${emp.accessLevel}`}>
                           {accessLabel.label} {accessLabel.role}
                         </span>
                       </td>
@@ -1046,9 +865,7 @@ function App() {
                           <input
                             type="checkbox"
                             checked={emp.isLevel1}
-                            onChange={() =>
-                              handleTogglePermission(emp.id, 'isLevel1')
-                            }
+                            onChange={() => handleTogglePermission(emp.id, 'isLevel1')}
                           />
                           <span className="toggle-switch__slider" />
                         </label>
@@ -1058,9 +875,7 @@ function App() {
                           <input
                             type="checkbox"
                             checked={emp.isLevel2}
-                            onChange={() =>
-                              handleTogglePermission(emp.id, 'isLevel2')
-                            }
+                            onChange={() => handleTogglePermission(emp.id, 'isLevel2')}
                           />
                           <span className="toggle-switch__slider" />
                         </label>
