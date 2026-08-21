@@ -14,9 +14,27 @@ __pycache__/
 *$py.class
 *.egg-info/
 
+# Node / Vite
+node_modules
+dist
+dist-ssr
+*.local
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
 # Editors / tools
 .idea/
 .vscode/
 .claude/
 .codegraph/
 .DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
