@@ -19,6 +19,7 @@ Each story is logged in the format:
 - As an **applicant**, I want **receipt OCR to auto-fill date and amount** so that **I can submit claims faster and with fewer typos**.
 - As a **developer**, I want **a Local-mock / Vercel-real-AI dual-mode OCR** so that **local demos stay offline while production gets real Gemini AI**.
 - As a **developer**, I want **a Vercel Serverless OCR relay API** so that **Gemini is called from the server and the Hong Kong IP geo-restriction is bypassed**.
+- As a **developer**, I want **OCR to run on GitHub Models GPT-4o-mini Vision via GITHUB_TOKEN** so that **the Vercel relay works with a GitHub token**.
 
 ---
 
@@ -116,6 +117,18 @@ Each story is logged in the format:
   - AC-502: Local dev (no `/api/ocr`) smoothly degrades to the mock engine with the Local Demo tag.
   - AC-503: Handler success path returns extracted fields from a Markdown-fenced Gemini JSON response; failure path forwards the Gemini error message.
 
+### User Story: Upgrade OCR to GitHub Models GPT-4o-mini Vision
+
+- **Functional Requirements**
+  - FR-601: `api/ocr.js` reads `process.env.GITHUB_TOKEN` and POSTs to `https://models.inference.ai.azure.com/chat/completions` with model `gpt-4o-mini`.
+  - FR-602: Image is sent as an OpenAI-compatible `image_url` data URL; model returns strict JSON `{"amount","date","merchant"}`.
+  - FR-603: GitHub Models failures print detailed status + body to the server console and return the error JSON.
+  - FR-604: Frontend success shows "✨ GitHub GPT-4o-mini Vision 辨識成功" and auto-fills amount/date; failure shows "❌ API 失敗: [詳細錯誤]".
+
+- **Acceptance Criteria**
+  - AC-601: Handler success path, 401 (Bad credentials), and missing-token paths verified via mocks.
+  - AC-602: `GITHUB_TOKEN` stored in git-ignored `.env.local`, never committed.
+
 - **Acceptance Criteria**
   - AC-101: Logging in as Testing1 shows only own claims and no approval queue.
   - AC-102: A claim of $9,999 shows GM → Finance path (CEO skipped); $10,000 shows GM → CEO → Finance.
@@ -188,6 +201,12 @@ Each story is logged in the format:
 | AC-501         | api/ocr.js validated (400/405/413/500 paths)     | Vercel Serverless API     | Developer wants correct error handling        | Verified    |
 | AC-502         | Local dev degrades to Local Demo tag             | OCR Service (Dual-mode)   | Developer wants offline demo                  | Verified    |
 | AC-503         | Success path + error path verified via mocks     | Vercel Serverless API     | Developer wants verified integration          | Verified    |
+| FR-601         | GITHUB_TOKEN + GitHub Models chat/completions    | Vercel Serverless API     | Developer wants GitHub token integration      | Complete    |
+| FR-602         | gpt-4o-mini vision via image_url + strict JSON   | Vercel Serverless API     | Developer wants reliable OCR extraction       | Complete    |
+| FR-603         | Detailed console.error on GitHub Models failure  | Vercel Serverless API     | Developer wants debuggable failures           | Complete    |
+| FR-604         | GitHub success tag + "❌ API 失敗" error UI      | OCR UI + Service          | User wants clear engine/error feedback        | Complete    |
+| AC-601         | Success / 401 / no-token paths verified          | Vercel Serverless API     | Developer wants verified integration          | Verified    |
+| AC-602         | GITHUB_TOKEN only in git-ignored .env.local      | Env Config                | Developer wants token secrecy                 | Verified    |
 
 ---
 

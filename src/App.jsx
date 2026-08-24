@@ -289,6 +289,7 @@ function App() {
   const [ocrStatus, setOcrStatus] = useState(null) // null | 'loading' | 'done' | 'error'
   const [ocrResult, setOcrResult] = useState(null)
   const [ocrFileName, setOcrFileName] = useState('')
+  const [ocrError, setOcrError] = useState('')
   const [dragOver, setDragOver] = useState(false)
 
   const amountNum = parseFloat(amount) || 0
@@ -378,6 +379,7 @@ function App() {
     setOcrStatus(null)
     setOcrResult(null)
     setOcrFileName('')
+    setOcrError('')
     setDragOver(false)
     setActionMessage('')
   }
@@ -386,11 +388,12 @@ function App() {
     setReceipts((prev) => prev.filter((f) => f !== fileName))
   }
 
-  /* ===== PaddleOCR v4 分析：自動帶入日期與金額 ===== */
+  /* ===== OCR / AI 分析：自動帶入日期與金額 ===== */
   const analyzeReceipt = async (file) => {
     setOcrStatus('loading')
     setOcrFileName(file.name)
     setOcrResult(null)
+    setOcrError('')
     try {
       const result = await processReceiptOCR(file)
       setOcrResult(result)
@@ -400,7 +403,8 @@ function App() {
       setActionMessage(`已由 OCR 自動帶入，可手動修正。`)
     } catch (err) {
       setOcrStatus('error')
-      setActionMessage(`OCR / AI 分析失敗：${err.message}`)
+      setOcrError(err.message || '未知錯誤')
+      setActionMessage(`❌ API 失敗: ${err.message}`)
     }
   }
 
@@ -449,6 +453,7 @@ function App() {
     setOcrStatus(null)
     setOcrResult(null)
     setOcrFileName('')
+    setOcrError('')
     setDragOver(false)
     setActiveModule('new-claim')
     setActionMessage(`正在重新編輯 ${claim.id}：修改內容並補交文件後，按「重新提交」即可再次送審。`)
@@ -915,11 +920,8 @@ function App() {
                   )}
                   {ocrStatus === 'done' && ocrResult && (
                     <div className="ocr-result">
-                      <span className={`ocr-badge ${ocrResult.engine === 'gemini' ? 'ocr-badge--gemini' : 'ocr-badge--mock'}`}>
-                        {ocrResult.statusLabel ||
-                          (ocrResult.engine === 'gemini'
-                            ? '✨ Google Gemini AI 辨識成功 (Live API)'
-                            : '✨ OCR 辨識成功 (Local Demo 模式)')}
+                      <span className={`ocr-badge ${ocrResult.engine === 'github' ? 'ocr-badge--gemini' : 'ocr-badge--mock'}`}>
+                        {ocrResult.statusLabel || '✨ GitHub GPT-4o-mini Vision 辨識成功'}
                       </span>
                       <span className="ocr-meta">
                         {ocrFileName} · 商戶：{ocrResult.merchant} · Confidence: {ocrResult.confidence}%
@@ -928,7 +930,7 @@ function App() {
                     </div>
                   )}
                   {ocrStatus === 'error' && (
-                    <p className="ocr-badge ocr-badge--error">⚠️ OCR / AI 分析失敗</p>
+                    <p className="ocr-badge ocr-badge--error">❌ API 失敗: {ocrError || '未知錯誤'}</p>
                   )}
                   {receipts.length > 0 && (
                     <ul className="file-list">

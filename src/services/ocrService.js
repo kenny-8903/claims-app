@@ -1,28 +1,22 @@
 /* ============================================================
  * ocrService.js — 單據 OCR 辨識服務
- * 「Vercel Serverless 真 AI / Local 擬真」雙模式
+ * 「Vercel Serverless (GitHub Models GPT-4o-mini Vision)」
  *
  * 使用方式：
  *   import { processReceiptOCR } from '../services/ocrService'
- *   const { confidence, extractedDate, extractedAmount, merchant, engine } =
+ *   const { confidence, extractedDate, extractedAmount, merchant, statusLabel } =
  *     await processReceiptOCR(file)
  *
  * 運作邏輯：
  *   1. 上傳單據時 POST /api/ocr（Vercel Serverless Function）。
- *      Server 端以 GEMINI_API_KEY 呼叫 Google Gemini 1.5 Flash Vision，
- *      徹底避開香港 IP 在前端瀏覽器直接呼叫 Gemini 的地區限制。
- *   2. 成功 → 回傳 { engine: 'gemini', source: 'vercel',
- *      statusLabel: '✨ Google Gemini AI 辨識成功 (Live API)' }。
- *   3. 失敗（本機 dev 無 /api、API 錯誤、金鑰未設定等）→ 平滑降級至
- *      Local 擬真引擎（Smart Mock for HK Local），UI 顯示
- *      「✨ OCR 辨識成功 (Local Demo 模式)」。
+ *      Server 端以 GITHUB_TOKEN 呼叫 GitHub Models GPT-4o-mini Vision。
+ *   2. 成功 → 回傳 { engine: 'github', source: 'vercel',
+ *      statusLabel: '✨ GitHub GPT-4o-mini Vision 辨識成功' }。
+ *   3. 失敗 → throw Error（含詳細訊息），由呼叫端顯示
+ *      「❌ API 失敗: [詳細錯誤]」。
  * ============================================================ */
 
 /* ===== 工具函式 ===== */
-function delay(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
-
 function toDateString(date) {
   const yyyy = date.getFullYear()
   const mm = String(date.getMonth() + 1).padStart(2, '0')
@@ -44,18 +38,8 @@ function fileToBase64(file) {
   })
 }
 
-/* 從檔名推導商戶名稱（移除副檔名與雜訊字元） */
-function deriveMerchant(fileName) {
-  const stem = (fileName || '')
-    .replace(/\.[^.]+$/, '')
-    .replace(/[^a-z0-9]+/gi, ' ')
-    .trim()
-    .toUpperCase()
-  return stem.length > 0 ? stem.slice(0, 24) : 'UNKNOWN'
-}
-
 /* ============================================================
- * Vercel Serverless 真 AI 引擎（POST /api/ocr）
+ * Vercel Serverless 引擎（POST /api/ocr → GitHub Models GPT-4o-mini Vision）
  * ============================================================ */
 async function callVercelOCR(file) {
   const base64 = await fileToBase64(file)
@@ -112,78 +96,18 @@ async function callVercelOCR(file) {
     extractedDate,
     merchant,
     confidence,
-    engine: 'gemini',
-    model: data.model || 'gemini-1.5-flash',
+    engine: 'github',
+    model: data.model || 'gpt-4o-mini',
     source: 'vercel',
-    statusLabel: '✨ Google Gemini AI 辨識成功 (Live API)',
-  }
-}
-
-/* ============================================================
- * Local 擬真引擎（Smart Mock for HK Local）
- * ============================================================ */
-const MOCK_RULES = [
-  {
-    match: (name) => /apollo|default|sample|demo/.test(name),
-    result: { extractedAmount: 200, extractedDate: '2018-12-24', merchant: 'APOLLO', confidence: 98.7 },
-  },
-  {
-    match: (name) => /taxi/.test(name),
-    result: { extractedAmount: 120, extractedDate: '2026-08-14', merchant: 'TAXI', confidence: 97.5 },
-  },
-  {
-    match: (name) => /mcdonald|macdonald/.test(name),
-    result: { extractedAmount: 45.5, extractedDate: '2026-08-10', merchant: 'MCDONALD', confidence: 96.8 },
-  },
-]
-
-function smartMockOCR(file) {
-  const name = (file.name || '').toLowerCase()
-
-  // 1) 依檔名關鍵字匹配
-  for (const rule of MOCK_RULES) {
-    if (rule.match(name)) {
-      return { ...rule.result }
-    }
-  }
-
-  // 2) 其他圖片：動態產生合理港幣金額（HK$150 ~ $1,500）與當日日期
-  const seed = (file.name.length * 31 + (file.size || 0)) % 100
-  const extractedAmount = Math.round((150 + seed * 13.5) * 100) / 100 // 150.00 ~ 1498.50
-  const now = new Date()
-  return {
-    extractedAmount,
-    extractedDate: toDateString(now),
-    merchant: deriveMerchant(file.name),
-    confidence: Math.round((94 + seed * 0.05) * 10) / 10, // 94.0% ~ 98.9%
-  }
-}
-
-async function runMockEngine(file) {
-  // 模擬引擎運算延遲（0.9 ~ 1.5 秒）
-  await delay(900 + Math.random() * 600)
-  const mock = smartMockOCR(file)
-  return {
-    ...mock,
-    engine: 'mock',
-    model: 'local-smart-mock',
-    source: 'local',
-    statusLabel: '✨ OCR 辨識成功 (Local Demo 模式)',
+    statusLabel: '✨ GitHub GPT-4o-mini Vision 辨識成功',
   }
 }
 
 /* ============================================================
  * 主要入口：processReceiptOCR(file)
+ * 成功回傳辨識結果；失敗則 throw（由呼叫端顯示「❌ API 失敗」）
  * ============================================================ */
 export async function processReceiptOCR(file) {
-  // 1) 優先呼叫 Vercel Serverless 真 AI（POST /api/ocr）
-  try {
-    return await callVercelOCR(file)
-  } catch (err) {
-    console.error('[ocrService] Vercel OCR API 呼叫失敗，平滑降級至 Local 擬真引擎。', err)
-    // 2) 平滑降級至 Local 擬真引擎（本機 dev / API 失敗 / 金鑰未設定皆適用）
-  }
-
-  return runMockEngine(file)
+  return callVercelOCR(file)
 }
 
