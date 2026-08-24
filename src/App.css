@@ -1624,3 +1624,135 @@
   background: #f8fafc;
 }
 
+
+/* ===== 申請類型切換（Claim / Leave） ===== */
+.request-type-toggle {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0 0 18px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.request-type-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #f8fafc;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.request-type-option:hover {
+  border-color: var(--primary-green-light);
+}
+
+.request-type-option--active {
+  background: rgba(11, 93, 75, 0.08);
+  border-color: var(--primary-green);
+  color: var(--primary-green);
+}
+
+.request-type-option input {
+  accent-color: var(--primary-green);
+}
+
+/* ===== 請假天數框 ===== */
+.leave-days-box {
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--primary-green);
+  background: #f0fdf4;
+  text-align: center;
+}
+
+/* ===== 類型標籤 [Claim] / [Leave] ===== */
+.type-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 11.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.type-badge--claim {
+  background: #dbeafe;
+  color: #1e40af;
+  border: 1px solid #93c5fd;
+}
+
+.type-badge--leave {
+  background: #dcfce7;
+  color: #166534;
+  border: 1px solid #86efac;
+}
+
+/* ===== Leave 審批狀態 ===== */
+.status-badge--leave-1st {
+  background: #ecfdf5;
+  color: #065f46;
+  border: 1px solid #6ee7b7;
+}
+
+.status-badge--leave-2nd {
+  background: #fdf4ff;
+  color: #86198f;
+  border: 1px solid #e9d5ff;
+}
+
+/* ===== Leave tier chips ===== */
+.tier-chip--leave1 {
+  background: #ecfdf5;
+  color: #065f46;
+  border: 1px solid #6ee7b7;
+}
+
+.tier-chip--leave2 {
+  background: #fdf4ff;
+  color: #86198f;
+  border: 1px solid #e9d5ff;
+}
+
+/* ===== 權限管理 Tabs ===== */
+.perm-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.perm-tab {
+  flex: 1;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #f8fafc;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s;
+}
+
+.perm-tab:hover {
+  border-color: var(--primary-green-light);
+}
+
+.perm-tab--active {
+  background: var(--primary-green);
+  border-color: var(--primary-green);
+  color: #ffffff;
+}
+

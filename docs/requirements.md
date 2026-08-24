@@ -256,6 +256,11 @@ Each story is logged in the format:
 | AC-1301        | Handler + frontend verified: base64 flow, no-env fallback, auto-fill | OCR Service | Developer wants finalized integration | Verified |
 | FR-1401        | All AI OCR deps removed; manual entry mode (URL.createObjectURL preview) | OCR Removal | User wants manual receipt entry | Complete |
 | AC-1401        | No OCR/API references remain in src/; lint + build pass | OCR Removal | Developer wants clean codebase | Verified |
+| FR-1501        | New Request mode toggle: Petty Cash vs Leave Application | Claim Form | Applicant wants multi-type requests | Complete |
+| FR-1502        | Leave fields (type/start/end/auto days/reason) + mandatory attachment for SL & Maternity/Paternity | Leave Module | Applicant wants validated leave entry | Complete |
+| FR-1503        | Permission mgmt tabs: Petty Cash (3-tier) vs Leave (Line Manager / HR) | Permission Mgmt | Admin wants split approval toggles | Complete |
+| FR-1504        | My Claims & Pending show [Claim]/[Leave] badges; leave approval flow via its own tiers | Lists & Approval | User wants clear type separation | Complete |
+| AC-1501        | lint + build pass; leave flow verified (Testing2 L1 → Testing4 L2) | Leave Module | Developer wants working leave flow | Verified |
 
 ---
 

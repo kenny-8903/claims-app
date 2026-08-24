@@ -101,6 +101,11 @@ const IconHistory = (p) => (
 /* ===== 靜態資料 ===== */
 const EXPENSE_CATEGORIES = ['交通費', '辦公雜費', '餐飲應酬', '緊急採購']
 
+/* 請假類型（Leave Application） */
+const LEAVE_TYPES = ['Annual Leave', 'Sick Leave (SL)', 'Unpaid Leave', 'Maternity/Paternity Leave']
+/* 需強制上傳附件的請假類型 */
+const LEAVE_ATTACHMENT_REQUIRED = ['Sick Leave (SL)', 'Maternity/Paternity Leave']
+
 /* 測試帳號（登入用，密碼皆為 123456） */
 const TEST_ACCOUNTS = [
   {
@@ -115,6 +120,8 @@ const TEST_ACCOUNTS = [
     isLevel1: false,
     isLevel2: false,
     isLevel3: false,
+    isLeaveLevel1: false,
+    isLeaveLevel2: false,
     desc: 'Operations Staff：僅可建立與檢視自己的申請',
   },
   {
@@ -129,6 +136,8 @@ const TEST_ACCOUNTS = [
     isLevel1: true,
     isLevel2: false,
     isLevel3: false,
+    isLeaveLevel1: true,
+    isLeaveLevel2: false,
     desc: 'General Manager (GM)：一級審批人（第 1 層審批）',
   },
   {
@@ -143,6 +152,8 @@ const TEST_ACCOUNTS = [
     isLevel1: false,
     isLevel2: true,
     isLevel3: false,
+    isLeaveLevel1: false,
+    isLeaveLevel2: true,
     desc: 'CEO：二級高階審批人（第 2 層審批）',
   },
   {
@@ -157,6 +168,8 @@ const TEST_ACCOUNTS = [
     isLevel1: false,
     isLevel2: false,
     isLevel3: true,
+    isLeaveLevel1: false,
+    isLeaveLevel2: true,
     desc: 'Finance & Admin：終極審批/放款人（最終批核）',
   },
 ]
@@ -223,6 +236,16 @@ const STATUS_CONFIG = {
     en: 'Pending Final Approval (Finance)',
     className: 'status-badge--pending-3rd',
   },
+  leave_pending_1st: {
+    label: '待直屬主管 (Line Manager) 審批',
+    en: 'Pending Line Manager Approval',
+    className: 'status-badge--leave-1st',
+  },
+  leave_pending_2nd: {
+    label: '待 HR / Management 審批',
+    en: 'Pending HR / Management Approval',
+    className: 'status-badge--leave-2nd',
+  },
   approved: {
     label: '已核准放款',
     en: 'Fully Approved & Disbursed',
@@ -237,13 +260,13 @@ const STATUS_CONFIG = {
 
 /* 預置員工資料（權限管理用） */
 const INITIAL_EMPLOYEES = [
-  { id: 'emp1', name: 'Testing1', initials: 'T1', dept: 'Operations', accessLevel: 1, isLevel1: false, isLevel2: false, isLevel3: false },
-  { id: 'emp2', name: 'Testing2', initials: 'T2', dept: 'General Management', accessLevel: 2, isLevel1: true, isLevel2: false, isLevel3: false },
-  { id: 'emp3', name: 'Testing3', initials: 'T3', dept: 'Executive', accessLevel: 3, isLevel1: false, isLevel2: true, isLevel3: false },
-  { id: 'emp4', name: 'Testing4', initials: 'T4', dept: 'Finance & Admin', accessLevel: 4, isLevel1: false, isLevel2: false, isLevel3: true },
-  { id: 'emp5', name: 'Sarah Wong', initials: 'SW', dept: 'Finance', accessLevel: 4, isLevel1: false, isLevel2: false, isLevel3: true },
-  { id: 'emp6', name: 'Michael Chan', initials: 'MC', dept: 'Operations', accessLevel: 2, isLevel1: true, isLevel2: false, isLevel3: false },
-  { id: 'emp7', name: 'Grace Leung', initials: 'GL', dept: 'HR', accessLevel: 1, isLevel1: false, isLevel2: false, isLevel3: false },
+  { id: 'emp1', name: 'Testing1', initials: 'T1', dept: 'Operations', accessLevel: 1, isLevel1: false, isLevel2: false, isLevel3: false, isLeaveLevel1: false, isLeaveLevel2: false },
+  { id: 'emp2', name: 'Testing2', initials: 'T2', dept: 'General Management', accessLevel: 2, isLevel1: true, isLevel2: false, isLevel3: false, isLeaveLevel1: true, isLeaveLevel2: false },
+  { id: 'emp3', name: 'Testing3', initials: 'T3', dept: 'Executive', accessLevel: 3, isLevel1: false, isLevel2: true, isLevel3: false, isLeaveLevel1: false, isLeaveLevel2: true },
+  { id: 'emp4', name: 'Testing4', initials: 'T4', dept: 'Finance & Admin', accessLevel: 4, isLevel1: false, isLevel2: false, isLevel3: true, isLeaveLevel1: false, isLeaveLevel2: true },
+  { id: 'emp5', name: 'Sarah Wong', initials: 'SW', dept: 'Finance', accessLevel: 4, isLevel1: false, isLevel2: false, isLevel3: true, isLeaveLevel1: false, isLeaveLevel2: true },
+  { id: 'emp6', name: 'Michael Chan', initials: 'MC', dept: 'Operations', accessLevel: 2, isLevel1: true, isLevel2: false, isLevel3: false, isLeaveLevel1: true, isLeaveLevel2: false },
+  { id: 'emp7', name: 'Grace Leung', initials: 'GL', dept: 'HR', accessLevel: 1, isLevel1: false, isLevel2: false, isLevel3: false, isLeaveLevel1: false, isLeaveLevel2: false },
 ]
 
 /* 預置單據（Sample：涵蓋不同金額、審批階段與駁回狀態） */
@@ -256,6 +279,12 @@ const INITIAL_CLAIMS = [
   { id: 'CL-2026-003', applicant: 'Testing1', applicantInitials: 'T1', department: 'Operations', category: '餐飲應酬', amount: 2500, date: '2026-08-16', remark: '與供應商聚餐商討合作細節', receipts: ['meal-receipt-003.jpg'], status: 'rejected', rejectionReason: '請補上正本收據及發票', rejectedBy: 'Testing2（GM (General Manager)）', rejectedAt: '2026-08-17T09:30:00' },
   // CL-2026-004：達門檻（>= $10,000），GM 已批，待 CEO 審核
   { id: 'CL-2026-004', applicant: 'Testing1', applicantInitials: 'T1', department: 'Operations', category: '辦公雜費', amount: 12000, date: '2026-08-18', remark: '年度辦公室文具及打印耗材', receipts: ['supplier-invoice-004.pdf'], status: 'pending_2nd' },
+  // LV-2026-001：Annual Leave，待直屬主管（Line Manager）審批
+  { id: 'LV-2026-001', kind: 'leave', applicant: 'Testing1', applicantInitials: 'T1', department: 'Operations', leaveType: 'Annual Leave', leaveStart: '2026-09-01', leaveEnd: '2026-09-03', leaveDays: 3, leaveReason: '年度假期：返鄉探親', receipts: [], status: 'leave_pending_1st' },
+  // LV-2026-002：Sick Leave（需附件），已過 Line Manager，待 HR / Management 審批
+  { id: 'LV-2026-002', kind: 'leave', applicant: 'Testing1', applicantInitials: 'T1', department: 'Operations', leaveType: 'Sick Leave (SL)', leaveStart: '2026-08-20', leaveEnd: '2026-08-21', leaveDays: 2, leaveReason: '發燒需就醫休養', receipts: ['doctor-note.pdf'], status: 'leave_pending_2nd' },
+  // LV-2026-003：Unpaid Leave，已被駁回，等待重新提交
+  { id: 'LV-2026-003', kind: 'leave', applicant: 'Testing1', applicantInitials: 'T1', department: 'Operations', leaveType: 'Unpaid Leave', leaveStart: '2026-10-01', leaveEnd: '2026-10-05', leaveDays: 5, leaveReason: '私人事務', receipts: [], status: 'rejected', rejectionReason: '人手不足，請改期申請', rejectedBy: 'Testing2（GM (General Manager)）', rejectedAt: '2026-08-22T10:00:00' },
 ]
 
 function App() {
@@ -287,8 +316,22 @@ function App() {
   const fileInputRef = useRef(null)
   const [dragOver, setDragOver] = useState(false)
   const [receiptImageUrl, setReceiptImageUrl] = useState('')
+  const [requestType, setRequestType] = useState('claim') // 'claim' | 'leave'
+  const [leaveType, setLeaveType] = useState('')
+  const [leaveStart, setLeaveStart] = useState('')
+  const [leaveEnd, setLeaveEnd] = useState('')
+  const [leaveReason, setLeaveReason] = useState('')
+  const [permTab, setPermTab] = useState('petty') // 'petty' | 'leave'
 
   const amountNum = parseFloat(amount) || 0
+  /* 自動計算請假天數（含頭尾） */
+  const leaveDaysNum = (() => {
+    if (!leaveStart || !leaveEnd) return 0
+    const start = new Date(`${leaveStart}T00:00:00`)
+    const end = new Date(`${leaveEnd}T00:00:00`)
+    const diff = Math.round((end - start) / 86400000) + 1
+    return diff > 0 ? diff : 0
+  })()
   const currentUser = TEST_ACCOUNTS.find((a) => a.id === authUserKey)
   const currentLevel = currentUser ? LEVEL_CONFIG[currentUser.accessLevel] : null
 
@@ -355,6 +398,7 @@ function App() {
 
   /* ===== 申請人動作：載入範例 / 清除 / 儲存草稿 / 遞交 ===== */
   const loadExample = () => {
+    setRequestType('claim')
     setDepartment(currentUser.dept)
     setCategory('交通費')
     setAmount('4500')
@@ -374,6 +418,11 @@ function App() {
     setEditingClaimId(null)
     setDragOver(false)
     setReceiptImageUrl('')
+    setRequestType('claim')
+    setLeaveType('')
+    setLeaveStart('')
+    setLeaveEnd('')
+    setLeaveReason('')
     setActionMessage('')
   }
 
@@ -432,11 +481,16 @@ function App() {
   /* 從「我的申請紀錄」重新編輯被駁回的單據（補交文件） */
   const startResubmit = (claim) => {
     setEditingClaimId(claim.id)
+    setRequestType(claim.kind === 'leave' ? 'leave' : 'claim')
     setDepartment(claim.department || currentUser.dept)
     setCategory(claim.category || '')
     setAmount(String(claim.amount ?? ''))
     setExpenseDate(claim.date || '')
     setRemark(claim.remark || '')
+    setLeaveType(claim.leaveType || '')
+    setLeaveStart(claim.leaveStart || '')
+    setLeaveEnd(claim.leaveEnd || '')
+    setLeaveReason(claim.leaveReason || '')
     setReceipts(claim.receipts || [])
     setReceiptImageUrl(claim.receiptImageUrl || '')
     setDragOver(false)
@@ -449,6 +503,74 @@ function App() {
   }
 
   const submitForm = () => {
+    // ===== Leave Application 模式 =====
+    if (requestType === 'leave') {
+      if (!leaveType || !leaveStart || !leaveEnd || !leaveReason) {
+        setActionMessage('請完整填寫請假類型、請假日期（起訖）與請假原因。')
+        return
+      }
+      if (leaveDaysNum <= 0) {
+        setActionMessage('請假結束日期必須晚於或等於開始日期。')
+        return
+      }
+      const attachmentRequired = LEAVE_ATTACHMENT_REQUIRED.includes(leaveType)
+      if (attachmentRequired && receipts.length === 0) {
+        setActionMessage(`「${leaveType}」為必填附件，請先上傳證明文件才能送出。`)
+        return
+      }
+
+      // 重新提交 / 補交文件模式
+      if (editingClaimId) {
+        setClaims((prev) =>
+          prev.map((c) =>
+            c.id === editingClaimId
+              ? {
+                  ...c,
+                  kind: 'leave',
+                  department,
+                  leaveType,
+                  leaveStart,
+                  leaveEnd,
+                  leaveDays: leaveDaysNum,
+                  leaveReason,
+                  receipts: [...receipts],
+                  receiptImageUrl: receiptImageUrl || c.receiptImageUrl || null,
+                  status: 'leave_pending_1st',
+                  rejectionReason: null,
+                  rejectedBy: null,
+                  rejectedAt: null,
+                  resubmittedCount: (c.resubmittedCount || 0) + 1,
+                }
+              : c,
+          ),
+        )
+        setActionMessage(`請假申請 ${editingClaimId} 已重新提交，狀態重置為「待直屬主管 (Line Manager) 審批」。`)
+        clearForm()
+        return
+      }
+
+      const newLeave = {
+        id: `LV-2026-${String(claims.length + 5).padStart(3, '0')}`,
+        kind: 'leave',
+        applicant: currentUser.name,
+        applicantInitials: currentUser.initials,
+        department: currentUser.dept,
+        leaveType,
+        leaveStart,
+        leaveEnd,
+        leaveDays: leaveDaysNum,
+        leaveReason,
+        receipts: [...receipts],
+        receiptImageUrl: receiptImageUrl || null,
+        status: 'leave_pending_1st',
+      }
+      setClaims((prev) => [newLeave, ...prev])
+      setActionMessage(`請假申請已成功遞交（${newLeave.id}），狀態為「待直屬主管 (Line Manager) 審批」。`)
+      clearForm()
+      return
+    }
+
+    // ===== Petty Cash Reimbursement 模式 =====
     if (!category || !amount || !expenseDate) {
       setActionMessage('請先填寫費用類別、金額與單據日期再遞交申請。')
       return
@@ -484,6 +606,7 @@ function App() {
 
     const newClaim = {
       id: `CL-2026-${String(claims.length + 5).padStart(3, '0')}`,
+      kind: 'claim',
       applicant: currentUser.name,
       applicantInitials: currentUser.initials,
       department: currentUser.dept,
@@ -502,8 +625,13 @@ function App() {
     clearForm()
   }
 
-  /* ===== 多級審批動作（依金額分流） ===== */
+  /* ===== 多級審批動作（依金額分流 / 請假分流） ===== */
   const getNextStatus = (claim) => {
+    // 請假流程：Line Manager → HR / Management → approved
+    if (claim.kind === 'leave') {
+      if (claim.status === 'leave_pending_1st') return 'leave_pending_2nd'
+      return 'approved'
+    }
     if (claim.status === 'pending_1st') {
       // 低於門檻：跳過 CEO（第 2 層），直接到最終批核（第 3 層 / Finance）
       return claim.amount < ROUTING_THRESHOLD ? 'pending_3rd' : 'pending_2nd'
@@ -516,6 +644,8 @@ function App() {
     const claim = claims.find((c) => c.id === id)
     if (!claim) return
     const isAuthorized =
+      (claim.status === 'leave_pending_1st' && currentUser.isLeaveLevel1) ||
+      (claim.status === 'leave_pending_2nd' && currentUser.isLeaveLevel2) ||
       (claim.status === 'pending_1st' && currentUser.isLevel1) ||
       (claim.status === 'pending_2nd' && currentUser.isLevel2) ||
       (claim.status === 'pending_3rd' && currentUser.isLevel3)
@@ -559,6 +689,8 @@ function App() {
     const claim = claims.find((c) => c.id === rejectTargetId)
     if (!claim) return
     const isAuthorized =
+      (claim.status === 'leave_pending_1st' && currentUser.isLeaveLevel1) ||
+      (claim.status === 'leave_pending_2nd' && currentUser.isLeaveLevel2) ||
       (claim.status === 'pending_1st' && currentUser.isLevel1) ||
       (claim.status === 'pending_2nd' && currentUser.isLevel2) ||
       (claim.status === 'pending_3rd' && currentUser.isLevel3)
@@ -592,9 +724,11 @@ function App() {
     const emp = employees.find((e) => e.id === empId)
     if (emp) {
       const tierLabels = {
-        isLevel1: '第 1 層審批權限',
-        isLevel2: '第 2 層審批權限',
-        isLevel3: '第 3 層審批權限',
+        isLevel1: 'Petty Cash 第 1 層審批權限',
+        isLevel2: 'Petty Cash 第 2 層審批權限',
+        isLevel3: 'Petty Cash 第 3 層審批權限',
+        isLeaveLevel1: 'Leave 第 1 層 (Line Manager) 審批權限',
+        isLeaveLevel2: 'Leave 第 2 層 (HR / Management) 審批權限',
       }
       const tierLabel = tierLabels[tier] || '審批權限'
       setActionMessage(`${emp.name} 的${tierLabel}已${emp[tier] ? '移除' : '啟用'}。`)
@@ -671,11 +805,21 @@ function App() {
   const pendingForUser = claims.filter((c) => c.status === 'pending_1st' && currentUser.isLevel1)
   const pending2ndForUser = claims.filter((c) => c.status === 'pending_2nd' && currentUser.isLevel2)
   const pending3rdForUser = claims.filter((c) => c.status === 'pending_3rd' && currentUser.isLevel3)
-  const visiblePending = [...pendingForUser, ...pending2ndForUser, ...pending3rdForUser]
+  const leavePending1stForUser = claims.filter((c) => c.status === 'leave_pending_1st' && currentUser.isLeaveLevel1)
+  const leavePending2ndForUser = claims.filter((c) => c.status === 'leave_pending_2nd' && currentUser.isLeaveLevel2)
+  const visiblePending = [
+    ...pendingForUser,
+    ...pending2ndForUser,
+    ...pending3rdForUser,
+    ...leavePending1stForUser,
+    ...leavePending2ndForUser,
+  ]
   const myClaims = claims.filter((c) => c.applicant === currentUser.name)
   const level1Count = employees.filter((e) => e.isLevel1).length
   const level2Count = employees.filter((e) => e.isLevel2).length
   const level3Count = employees.filter((e) => e.isLevel3).length
+  const leaveLevel1Count = employees.filter((e) => e.isLeaveLevel1).length
+  const leaveLevel2Count = employees.filter((e) => e.isLeaveLevel2).length
   const route = approvalRoute()
 
   return (
@@ -774,71 +918,103 @@ function App() {
             <section className="pc-card">
               <div className="pc-card__header">
                 <h2 className="pc-card__title">
-                  {editingClaimId ? `重新編輯 / 補交文件（${editingClaimId}）` : 'Petty Cash 報銷申請表'}
+                  {editingClaimId
+                    ? `重新編輯 / 補交文件（${editingClaimId}）`
+                    : requestType === 'leave'
+                      ? 'Leave Application（請假申請表）'
+                      : 'Petty Cash Reimbursement（報銷申請表）'}
                 </h2>
-                {!editingClaimId && (
+                {!editingClaimId && requestType === 'claim' && (
                   <button type="button" className="btn-load" onClick={loadExample}>
                     載入 Petty Cash 範例
                   </button>
                 )}
               </div>
 
-              <div className="pc-form-grid">
-                <div className="pc-field">
-                  <label htmlFor="applicant">申請人（鎖定為目前登入帳號）</label>
+              {/* 申請類型切換 */}
+              <div className="request-type-toggle">
+                <label className={`request-type-option ${requestType === 'claim' ? 'request-type-option--active' : ''}`}>
                   <input
-                    id="applicant"
-                    type="text"
-                    value={currentUser.name}
-                    readOnly
-                    title="申請人鎖定為目前登入帳號"
+                    type="radio"
+                    name="requestType"
+                    value="claim"
+                    checked={requestType === 'claim'}
+                    onChange={() => setRequestType('claim')}
+                    disabled={!!editingClaimId}
                   />
-                </div>
-                <div className="pc-field">
-                  <label htmlFor="department">部門</label>
+                  💰 Petty Cash Reimbursement（報銷）
+                </label>
+                <label className={`request-type-option ${requestType === 'leave' ? 'request-type-option--active' : ''}`}>
                   <input
-                    id="department"
-                    type="text"
-                    value={department}
-                    onChange={(e) => setDepartment(e.target.value)}
-                    placeholder={currentUser.dept}
+                    type="radio"
+                    name="requestType"
+                    value="leave"
+                    checked={requestType === 'leave'}
+                    onChange={() => setRequestType('leave')}
+                    disabled={!!editingClaimId}
                   />
-                </div>
-                <div className="pc-field">
-                  <label htmlFor="category">費用類別</label>
-                  <select id="category" value={category} onChange={(e) => setCategory(e.target.value)}>
-                    <option value="">請選擇類別</option>
-                    {EXPENSE_CATEGORIES.map((c) => (
-                      <option key={c} value={c}>{c}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="pc-field">
-                  <label htmlFor="amount">報銷總金額（HKD）</label>
-                  <div className="pc-input-group">
-                    <span className="pc-input-group__prefix">HK$</span>
-                    <input
-                      id="amount"
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={amount}
-                      onChange={(e) => setAmount(e.target.value)}
-                      placeholder="0.00"
-                      aria-label="報銷總金額（港幣）"
-                    />
-                  </div>
-                </div>
-                <div className="pc-field">
-                  <label htmlFor="expenseDate">單據日期</label>
-                  <input
-                    id="expenseDate"
-                    type="date"
-                    value={expenseDate}
-                    onChange={(e) => setExpenseDate(e.target.value)}
-                  />
-                </div>
+                  📅 Leave Application（請假）
+                </label>
               </div>
+
+              {requestType === 'claim' ? (
+                <>
+                  <div className="pc-form-grid">
+                    <div className="pc-field">
+                      <label htmlFor="applicant">申請人（鎖定為目前登入帳號）</label>
+                      <input
+                        id="applicant"
+                        type="text"
+                        value={currentUser.name}
+                        readOnly
+                        title="申請人鎖定為目前登入帳號"
+                      />
+                    </div>
+                    <div className="pc-field">
+                      <label htmlFor="department">部門</label>
+                      <input
+                        id="department"
+                        type="text"
+                        value={department}
+                        onChange={(e) => setDepartment(e.target.value)}
+                        placeholder={currentUser.dept}
+                      />
+                    </div>
+                    <div className="pc-field">
+                      <label htmlFor="category">費用類別</label>
+                      <select id="category" value={category} onChange={(e) => setCategory(e.target.value)}>
+                        <option value="">請選擇類別</option>
+                        {EXPENSE_CATEGORIES.map((c) => (
+                          <option key={c} value={c}>{c}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="pc-field">
+                      <label htmlFor="amount">報銷總金額（HKD）</label>
+                      <div className="pc-input-group">
+                        <span className="pc-input-group__prefix">HK$</span>
+                        <input
+                          id="amount"
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={amount}
+                          onChange={(e) => setAmount(e.target.value)}
+                          placeholder="0.00"
+                          aria-label="報銷總金額（港幣）"
+                        />
+                      </div>
+                    </div>
+                    <div className="pc-field">
+                      <label htmlFor="expenseDate">單據日期</label>
+                      <input
+                        id="expenseDate"
+                        type="date"
+                        value={expenseDate}
+                        onChange={(e) => setExpenseDate(e.target.value)}
+                      />
+                    </div>
+                  </div>
 
               <div className="pc-field pc-field--full">
                 <label htmlFor="remark">報銷事由 / 備註</label>
@@ -850,10 +1026,87 @@ function App() {
                   placeholder="請描述報銷事由，例如：出差拜訪客戶的交通費用..."
                 />
               </div>
+                </>
+              ) : (
+                <>
+                  <div className="pc-form-grid">
+                    <div className="pc-field">
+                      <label htmlFor="applicant">申請人（鎖定為目前登入帳號）</label>
+                      <input
+                        id="applicant"
+                        type="text"
+                        value={currentUser.name}
+                        readOnly
+                        title="申請人鎖定為目前登入帳號"
+                      />
+                    </div>
+                    <div className="pc-field">
+                      <label htmlFor="department">部門</label>
+                      <input
+                        id="department"
+                        type="text"
+                        value={department}
+                        onChange={(e) => setDepartment(e.target.value)}
+                        placeholder={currentUser.dept}
+                      />
+                    </div>
+                    <div className="pc-field">
+                      <label htmlFor="leaveType">假期類型（Leave Type）</label>
+                      <select id="leaveType" value={leaveType} onChange={(e) => setLeaveType(e.target.value)}>
+                        <option value="">請選擇請假類型</option>
+                        {LEAVE_TYPES.map((t) => (
+                          <option key={t} value={t}>{t}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="pc-field">
+                      <label htmlFor="leaveStart">開始日期（Start Date）</label>
+                      <input
+                        id="leaveStart"
+                        type="date"
+                        value={leaveStart}
+                        onChange={(e) => setLeaveStart(e.target.value)}
+                      />
+                    </div>
+                    <div className="pc-field">
+                      <label htmlFor="leaveEnd">結束日期（End Date）</label>
+                      <input
+                        id="leaveEnd"
+                        type="date"
+                        value={leaveEnd}
+                        onChange={(e) => setLeaveEnd(e.target.value)}
+                      />
+                    </div>
+                    <div className="pc-field">
+                      <label>請假天數（自動計算）</label>
+                      <div className="leave-days-box">
+                        {leaveDaysNum > 0 ? `${leaveDaysNum} 天` : '—'}
+                      </div>
+                    </div>
+                  </div>
 
-              {/* 單據上載區 */}
+                  <div className="pc-field pc-field--full">
+                    <label htmlFor="leaveReason">請假原因（Reason）</label>
+                    <textarea
+                      id="leaveReason"
+                      rows="4"
+                      value={leaveReason}
+                      onChange={(e) => setLeaveReason(e.target.value)}
+                      placeholder="請描述請假原因..."
+                    />
+                  </div>
+                </>
+              )}
+
+              {/* 單據上載區 / 附件上載區 */}
               <div className="pc-field pc-field--full">
-                <label>單據上載</label>
+                <label>
+                  {requestType === 'leave'
+                    ? LEAVE_ATTACHMENT_REQUIRED.includes(leaveType)
+                      ? '上傳附件（必填：此請假類型需提供證明文件）'
+                      : '上傳附件（選填）'
+                    : '單據上載'}
+                </label>
                 <div
                   className={`upload-area ${dragOver ? 'upload-area--dragging' : ''}`}
                   onDragOver={(e) => {
@@ -934,7 +1187,8 @@ function App() {
               </div>
             </section>
 
-            {/* 金額門檻自動分流卡片（四層角色・動態金額分流） */}
+            {requestType === 'claim' && (
+            /* 金額門檻自動分流卡片（四層角色・動態金額分流） */
             <section className="routing-card">
               <h2 className="routing-card__title">審批路徑預覽</h2>
               {route.length > 0 ? (
@@ -981,6 +1235,7 @@ function App() {
                 </>
               )}
             </section>
+            )}
 
             {/* 按鈕列 */}
             <footer className="pc-footer">
@@ -1005,11 +1260,12 @@ function App() {
               <table className="data-table">
                 <thead>
                   <tr>
+                    <th>類型</th>
                     <th>單據編號</th>
-                    <th>費用類別</th>
-                    <th>金額 (HKD)</th>
-                    <th>單據日期</th>
-                    <th>報銷事由</th>
+                    <th>類別 / 假期類型</th>
+                    <th>金額 / 天數</th>
+                    <th>日期 / 期間</th>
+                    <th>事由 / 原因</th>
                     <th>狀態</th>
                     <th>操作</th>
                   </tr>
@@ -1017,13 +1273,19 @@ function App() {
                 <tbody>
                   {myClaims.map((c) => {
                     const status = STATUS_CONFIG[c.status]
+                    const isLeave = c.kind === 'leave'
                     return (
                       <tr key={c.id}>
+                        <td>
+                          <span className={`type-badge ${isLeave ? 'type-badge--leave' : 'type-badge--claim'}`}>
+                            {isLeave ? '[Leave]' : '[Claim]'}
+                          </span>
+                        </td>
                         <td className="data-table__id">{c.id}</td>
-                        <td>{c.category}</td>
-                        <td>HK${c.amount.toLocaleString()}</td>
-                        <td>{c.date}</td>
-                        <td className="data-table__remark">{c.remark}</td>
+                        <td>{isLeave ? c.leaveType : c.category}</td>
+                        <td>{isLeave ? `${c.leaveDays ?? 0} 天` : `HK$${c.amount.toLocaleString()}`}</td>
+                        <td>{isLeave ? `${c.leaveStart} ~ ${c.leaveEnd}` : c.date}</td>
+                        <td className="data-table__remark">{isLeave ? c.leaveReason : c.remark}</td>
                         <td>
                           <span className={`status-badge ${status.className}`} title={status.en}>
                             {status.label}
@@ -1070,6 +1332,12 @@ function App() {
                 {currentUser.isLevel3 && (
                   <span className="tier-chip tier-chip--3rd">第 3 層審批：Finance 最終批核</span>
                 )}
+                {currentUser.isLeaveLevel1 && (
+                  <span className="tier-chip tier-chip--leave1">Leave 第 1 層：Line Manager</span>
+                )}
+                {currentUser.isLeaveLevel2 && (
+                  <span className="tier-chip tier-chip--leave2">Leave 第 2 層：HR / Management</span>
+                )}
               </div>
             </div>
             {visiblePending.length === 0 ? (
@@ -1078,13 +1346,14 @@ function App() {
               <table className="data-table">
                 <thead>
                   <tr>
+                    <th>類型</th>
                     <th>單據編號</th>
                     <th>申請人</th>
                     <th>部門</th>
-                    <th>費用類別</th>
-                    <th>金額 (HKD)</th>
-                    <th>單據日期</th>
-                    <th>報銷事由</th>
+                    <th>類別 / 假期類型</th>
+                    <th>金額 / 天數</th>
+                    <th>日期 / 期間</th>
+                    <th>事由 / 原因</th>
                     <th>目前階段</th>
                     <th>操作</th>
                   </tr>
@@ -1092,8 +1361,14 @@ function App() {
                 <tbody>
                   {visiblePending.map((c) => {
                     const status = STATUS_CONFIG[c.status]
+                    const isLeave = c.kind === 'leave'
                     return (
                       <tr key={c.id}>
+                        <td>
+                          <span className={`type-badge ${isLeave ? 'type-badge--leave' : 'type-badge--claim'}`}>
+                            {isLeave ? '[Leave]' : '[Claim]'}
+                          </span>
+                        </td>
                         <td className="data-table__id">{c.id}</td>
                         <td>
                           <span className="approver-cell">
@@ -1102,10 +1377,10 @@ function App() {
                           </span>
                         </td>
                         <td>{c.department}</td>
-                        <td>{c.category}</td>
-                        <td>HK${c.amount.toLocaleString()}</td>
-                        <td>{c.date}</td>
-                        <td className="data-table__remark">{c.remark}</td>
+                        <td>{isLeave ? c.leaveType : c.category}</td>
+                        <td>{isLeave ? `${c.leaveDays ?? 0} 天` : `HK$${c.amount.toLocaleString()}`}</td>
+                        <td>{isLeave ? `${c.leaveStart} ~ ${c.leaveEnd}` : c.date}</td>
+                        <td className="data-table__remark">{isLeave ? c.leaveReason : c.remark}</td>
                         <td>
                           <span className={`status-badge ${status.className}`}>{status.label}</span>
                         </td>
@@ -1133,57 +1408,131 @@ function App() {
           <section className="pc-card">
             <div className="pc-card__header">
               <h2 className="pc-card__title">權限管理</h2>
-              <div className="pending-meta">
-                <span className="pending-count">{level1Count} 位一級審批人</span>
-                <span className="pending-count">{level2Count} 位二級審批人</span>
-                <span className="pending-count">{level3Count} 位終審審批人</span>
-              </div>
             </div>
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>員工</th>
-                  <th>部門</th>
-                  <th>存取層級</th>
-                  <th>第 1 層審批權限</th>
-                  <th>第 2 層審批權限</th>
-                  <th>第 3 層審批權限</th>
-                </tr>
-              </thead>
-              <tbody>
-                {employees.map((emp) => {
-                  const accessLabel = LEVEL_CONFIG[emp.accessLevel]
-                  return (
-                    <tr key={emp.id}>
-                      <td>
-                        <span className="approver-cell">
-                          <span className="approver-cell__avatar">{emp.initials}</span>
-                          {emp.name}
-                        </span>
-                      </td>
-                      <td>{emp.dept}</td>
-                      <td>
-                        <span className={`role-tag role-tag--level-${emp.accessLevel}`}>
-                          {accessLabel.label} {accessLabel.role}
-                        </span>
-                      </td>
-                      {['isLevel1', 'isLevel2', 'isLevel3'].map((tier) => (
-                        <td key={tier}>
-                          <label className="toggle-switch">
-                            <input
-                              type="checkbox"
-                              checked={emp[tier]}
-                              onChange={() => handleTogglePermission(emp.id, tier)}
-                            />
-                            <span className="toggle-switch__slider" />
-                          </label>
-                        </td>
-                      ))}
+
+            {/* Tab 切換：Petty Cash / Leave Application */}
+            <div className="perm-tabs">
+              <button
+                type="button"
+                className={`perm-tab ${permTab === 'petty' ? 'perm-tab--active' : ''}`}
+                onClick={() => setPermTab('petty')}
+              >
+                Petty Cash 審批權限
+              </button>
+              <button
+                type="button"
+                className={`perm-tab ${permTab === 'leave' ? 'perm-tab--active' : ''}`}
+                onClick={() => setPermTab('leave')}
+              >
+                Leave Application 審批權限
+              </button>
+            </div>
+
+            {permTab === 'petty' ? (
+              <>
+                <div className="pending-meta">
+                  <span className="pending-count">{level1Count} 位一級審批人</span>
+                  <span className="pending-count">{level2Count} 位二級審批人</span>
+                  <span className="pending-count">{level3Count} 位終審審批人</span>
+                </div>
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>員工</th>
+                      <th>部門</th>
+                      <th>存取層級</th>
+                      <th>第 1 層審批權限</th>
+                      <th>第 2 層審批權限</th>
+                      <th>第 3 層審批權限</th>
                     </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+                  </thead>
+                  <tbody>
+                    {employees.map((emp) => {
+                      const accessLabel = LEVEL_CONFIG[emp.accessLevel]
+                      return (
+                        <tr key={emp.id}>
+                          <td>
+                            <span className="approver-cell">
+                              <span className="approver-cell__avatar">{emp.initials}</span>
+                              {emp.name}
+                            </span>
+                          </td>
+                          <td>{emp.dept}</td>
+                          <td>
+                            <span className={`role-tag role-tag--level-${emp.accessLevel}`}>
+                              {accessLabel.label} {accessLabel.role}
+                            </span>
+                          </td>
+                          {['isLevel1', 'isLevel2', 'isLevel3'].map((tier) => (
+                            <td key={tier}>
+                              <label className="toggle-switch">
+                                <input
+                                  type="checkbox"
+                                  checked={emp[tier]}
+                                  onChange={() => handleTogglePermission(emp.id, tier)}
+                                />
+                                <span className="toggle-switch__slider" />
+                              </label>
+                            </td>
+                          ))}
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </>
+            ) : (
+              <>
+                <div className="pending-meta">
+                  <span className="pending-count">{leaveLevel1Count} 位 Line Manager 審批人</span>
+                  <span className="pending-count">{leaveLevel2Count} 位 HR / Management 審批人</span>
+                </div>
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>員工</th>
+                      <th>部門</th>
+                      <th>存取層級</th>
+                      <th>Leave 第 1 層（Line Manager）</th>
+                      <th>Leave 第 2 層（HR / Management）</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {employees.map((emp) => {
+                      const accessLabel = LEVEL_CONFIG[emp.accessLevel]
+                      return (
+                        <tr key={emp.id}>
+                          <td>
+                            <span className="approver-cell">
+                              <span className="approver-cell__avatar">{emp.initials}</span>
+                              {emp.name}
+                            </span>
+                          </td>
+                          <td>{emp.dept}</td>
+                          <td>
+                            <span className={`role-tag role-tag--level-${emp.accessLevel}`}>
+                              {accessLabel.label} {accessLabel.role}
+                            </span>
+                          </td>
+                          {['isLeaveLevel1', 'isLeaveLevel2'].map((tier) => (
+                            <td key={tier}>
+                              <label className="toggle-switch">
+                                <input
+                                  type="checkbox"
+                                  checked={emp[tier]}
+                                  onChange={() => handleTogglePermission(emp.id, tier)}
+                                />
+                                <span className="toggle-switch__slider" />
+                              </label>
+                            </td>
+                          ))}
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </>
+            )}
           </section>
         )}
       </main>
