@@ -1,12 +1,10 @@
 /* ============================================================
  * api/ocr.js — Vercel Serverless Function（Node.js）
  *
- * 使用官方 @google/generative-ai SDK 呼叫 Gemini Vision（多模型 fallback）
- * 在 Server 端辨識收據，徹底避開「香港 IP 在前端瀏覽器直連 Gemini」的限制，
- * 也避開 Vite 前端環境變數的困擾（API Key 僅存在 Server 端）。
- * 模型名稱自動依序嘗試 gemini-1.5-flash-latest / -001 / flash / pro，解決 404。
+ * 原生 fetch 直連 Google Gemini 1.5 Flash REST API（不使用 SDK）
+ * 在 Server 端辨識收據，繞過香港 IP 的前端瀏覽器直連限制。
  *
- * 環境變數：GEMINI_API_KEY（必要；未設定時自動讀取本地 .env.local）
+ * 環境變數（擇一）：GEMINI_API_KEY / NEXT_PUBLIC_GEMINI_API_KEY / VITE_GEMINI_API_KEY
  *   - 正式環境：Vercel Project → Settings → Environment Variables
  *   - 本地測試：寫入 .env.local 並使用 `vercel dev`（或 npx vercel dev）
  *
@@ -18,20 +16,28 @@
  *     "model": "gemini-1.5-flash", "source": "vercel" }
  * ============================================================ */
 
-import { GoogleGenerativeAI } from '@google/generative-ai'
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-/* 讀取 API Key：優先環境變數 GEMINI_API_KEY，其次本地 .env.local（供 Node 直跑 / vercel dev） */
-function getGeminiApiKey() {
-  if (process.env.GEMINI_API_KEY) return process.env.GEMINI_API_KEY.trim()
+/* ===== API Key：支援多種命名，並回退讀取本地 .env.local ===== */
+function getApiKey() {
+  const envCandidates = [
+    process.env.GEMINI_API_KEY,
+    process.env.NEXT_PUBLIC_GEMINI_API_KEY,
+    process.env.VITE_GEMINI_API_KEY,
+  ]
+  const fromEnv = envCandidates.find((v) => v && v.trim())
+  if (fromEnv) return fromEnv.trim()
+
   try {
     const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
     const content = readFileSync(path.join(rootDir, '.env.local'), 'utf8')
-    const match = content.match(/^\s*GEMINI_API_KEY\s*=\s*(.+?)\s*$/m)
-    if (match) {
-      return match[1].trim().replace(/^["']|["']$/g, '')
+    for (const name of ['GEMINI_API_KEY', 'NEXT_PUBLIC_GEMINI_API_KEY', 'VITE_GEMINI_API_KEY']) {
+      const match = content.match(new RegExp(`^\\s*${name}\\s*=\\s*(.+?)\\s*$`, 'm'))
+      if (match) {
+        return match[1].trim().replace(/^["']|["']$/g, '')
+      }
     }
   } catch {
     /* .env.local 不存在或不可讀時忽略 */
@@ -39,10 +45,7 @@ function getGeminiApiKey() {
   return ''
 }
 
-/* Gemini 客戶端（Server 端初始化） */
-const genAI = new GoogleGenerativeAI(getGeminiApiKey())
-
-/* 模型名稱 fallback（最大相容性：依序嘗試，避免單一模型名稱 404） */
+/* 模型名稱（依序嘗試，最大相容性避免 404） */
 const GEMINI_MODELS = [
   'gemini-1.5-flash',
   'gemini-1.5-flash-latest',
@@ -50,15 +53,14 @@ const GEMINI_MODELS = [
   'gemini-1.5-pro',
 ]
 
-/* Base64 字串長度上限（原圖約 3MB）；Vercel Node 函式 body 上限 4.5MB */
+/* Base64 壓縮防護：限制字串長度（原圖約 3MB）與解碼後位元組數 */
 const MAX_BASE64_LENGTH = 4 * 1024 * 1024
-/* 解碼後圖片位元組上限 */
 const MAX_IMAGE_BYTES = 3 * 1024 * 1024
 
-/* 要求 Gemini 強制回傳純 JSON（amount / date / merchant） */
+/* 要求 Gemini 強制回傳純 JSON */
 const OCR_PROMPT =
-  '請仔細分析這張收據，精準提取：金額 (amount: 數字)、日期 (date: YYYY-MM-DD)、商戶名稱 (merchant)。' +
-  '並強制以純 JSON 格式回傳：{"amount": 數字, "date": "YYYY-MM-DD", "merchant": "商戶名稱"}（例如：{"amount": 200, "date": "2018-12-24", "merchant": "APOLLO SPECTRA"}）。' +
+  '請仔細分析這張收據，精準提取：金額 (amount: 數字)、日期 (date: YYYY-MM-DD)、商戶名稱 (merchant)，' +
+  '並強制以純 JSON 格式回傳，例如：{"amount": 200, "date": "2018-12-24", "merchant": "APOLLO SPECTRA"}。' +
   '不要回傳任何 Markdown 標記或其他文字。'
 
 function toDateString(date) {
@@ -83,22 +85,65 @@ function extractJson(text) {
   return JSON.parse(cleaned.slice(start, end + 1))
 }
 
-/* 依序嘗試各 Gemini 模型；成功回傳 { modelName, text }，全部失敗拋出最後錯誤 */
-async function generateWithFallback(base64, mimeType) {
+/* ===== 原生 fetch 直連 Gemini REST API（含模型 fallback） ===== */
+async function callGeminiREST(apiKey, base64, mimeType) {
   let lastError = null
+
   for (const modelName of GEMINI_MODELS) {
+    const endpoint =
+      `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`
+
     try {
-      const model = genAI.getGenerativeModel({ model: modelName })
-      const result = await model.generateContent([
-        OCR_PROMPT,
-        { inlineData: { data: base64, mimeType } },
-      ])
-      return { modelName, text: result.response.text() }
+      const geminiRes = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                { text: OCR_PROMPT },
+                {
+                  inline_data: {
+                    mime_type: mimeType,
+                    data: base64,
+                  },
+                },
+              ],
+            },
+          ],
+          generationConfig: {
+            response_mime_type: 'application/json',
+          },
+        }),
+      })
+
+      if (!geminiRes.ok) {
+        const detail = await geminiRes.text().catch(() => '')
+        const error = new Error(
+          `Gemini REST API 回應失敗（HTTP ${geminiRes.status}）：${detail.slice(0, 500)}`,
+        )
+        error.status = geminiRes.status
+        throw error
+      }
+
+      const data = await geminiRes.json()
+      const text =
+        (data &&
+          data.candidates &&
+          data.candidates[0] &&
+          data.candidates[0].content &&
+          data.candidates[0].content.parts &&
+          data.candidates[0].content.parts[0] &&
+          data.candidates[0].content.parts[0].text) ||
+        ''
+
+      return { modelName, text }
     } catch (err) {
       lastError = err
       console.warn(`[ocr] 模型 ${modelName} 呼叫失敗（${err.message}），嘗試下一個...`)
     }
   }
+
   throw lastError || new Error('所有 Gemini 模型皆呼叫失敗')
 }
 
@@ -120,11 +165,10 @@ export default async function handler(req, res) {
   }
   const { image, mimeType } = body || {}
 
-  /* ===== Base64 容錯與長度檢查 ===== */
+  /* ===== 提取 Base64（去掉 data:image/...;base64, 標頭並移除空白） ===== */
   let imageB64 = typeof image === 'string' ? image.trim() : ''
   let mime = typeof mimeType === 'string' && mimeType.length > 0 ? mimeType : 'image/jpeg'
 
-  // 容錯：允許 data URL 前綴（data:image/png;base64,...），並由 meta 推導 mimeType
   if (imageB64.startsWith('data:')) {
     const commaIdx = imageB64.indexOf(',')
     if (commaIdx !== -1) {
@@ -160,9 +204,17 @@ export default async function handler(req, res) {
     })
   }
 
+  const apiKey = getApiKey()
+  if (!apiKey) {
+    return res.status(500).json({
+      error: 'GEMINI_API_KEY 尚未設定（請在 Vercel 環境變數或 .env.local 中設定）',
+    })
+  }
+
   try {
-    // 官方 Gemini SDK：inlineData（Base64），模型名稱自動 fallback
-    const { modelName, text } = await generateWithFallback(
+    // 原生 fetch 直連 Gemini REST API（含模型 fallback）
+    const { modelName, text } = await callGeminiREST(
+      apiKey,
       decoded.toString('base64'),
       mime,
     )
