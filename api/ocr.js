@@ -1,3 +1,4 @@
+// Trigger redeploy to pick up GITHUB_TOKEN env variable
 /* ============================================================
  * api/ocr.js — Vercel Serverless Function（Node.js）
  *
