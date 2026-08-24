@@ -1,43 +1,57 @@
-// Trigger redeploy to pick up GITHUB_TOKEN env variable
 /* ============================================================
  * api/ocr.js — Vercel Serverless Function（Node.js）
  *
- * 前端上傳 Base64 圖片 → Server 端呼叫 GitHub Models (GPT-4o-mini Vision)
+ * 使用官方 openai SDK 呼叫 GitHub Models（GPT-4o-mini Vision）
+ * baseURL: https://models.inference.ai.azure.com
  * 透過 Server 端呼叫，徹底避開「香港 IP 在前端瀏覽器直接呼叫 AI」的地區限制。
  *
- * HTTP Client：使用原生 node:https（非全域 fetch），
- *   避免 Vercel 執行環境的全域 fetch 拋出 generic「fetch failed」異常。
- *
- * 環境變數：GITHUB_TOKEN（必要）
+ * 環境變數：GITHUB_TOKEN（必要；未設定時自動讀取本地 .env.local）
  *   - 正式環境：Vercel Project → Settings → Environment Variables
  *   - 本地測試：寫入 .env.local 並使用 `vercel dev`（或 npx vercel dev）
- *   - Token 未設定時回傳 500 錯誤（不在程式碼內硬編碼 Token）
  *
  * 請求：POST /api/ocr
  *   { "image": "<base64 或 data URL>", "mimeType": "image/jpeg", "fileName": "x.jpg" }
  * 回應（成功 200）：
- *   { "extractedAmount": 1250.00, "extractedDate": "2026-08-24",
+ *   { "extractedAmount": 200, "extractedDate": "2018-12-24",
  *     "merchant": "APOLLO", "confidence": 95, "engine": "github",
  *     "model": "gpt-4o-mini", "source": "vercel" }
  * ============================================================ */
 
-import https from 'node:https'
+import OpenAI from 'openai'
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const MODEL_NAME = 'gpt-4o-mini'
+/* 讀取 Token：優先環境變數 GITHUB_TOKEN，其次本地 .env.local（供 Node 直跑 / vercel dev） */
+function getGithubToken() {
+  if (process.env.GITHUB_TOKEN) return process.env.GITHUB_TOKEN.trim()
+  try {
+    const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+    const content = readFileSync(path.join(rootDir, '.env.local'), 'utf8')
+    const match = content.match(/^\s*GITHUB_TOKEN\s*=\s*(.+?)\s*$/m)
+    if (match) {
+      return match[1].trim().replace(/^["']|["']$/g, '')
+    }
+  } catch {
+    /* .env.local 不存在或不可讀時忽略 */
+  }
+  return ''
+}
 
-/* GitHub Models 正確主機與路徑（Azure AI Foundry / OpenAI 相容格式） */
-const API_HOSTNAME = 'models.inference.ai.azure.com'
-const API_PATH = '/chat/completions'
+/* 官方 openai SDK 客戶端（GitHub Models 走 OpenAI 相容 endpoint） */
+const client = new OpenAI({
+  baseURL: 'https://models.inference.ai.azure.com',
+  apiKey: getGithubToken(),
+})
+
+const MODEL_NAME = 'gpt-4o-mini'
 
 /* Base64 字串長度上限（原圖約 3MB）；Vercel Node 函式 body 上限 4.5MB */
 const MAX_BASE64_LENGTH = 4 * 1024 * 1024
 /* 解碼後圖片位元組上限 */
 const MAX_IMAGE_BYTES = 3 * 1024 * 1024
 
-/* 要求模型嚴格回傳 JSON（amount / date / merchant） */
+/* 要求 AI 強制回傳 JSON（amount / date / merchant） */
 const OCR_PROMPT =
   '請讀取這張單據圖片，僅回傳 JSON：{"amount": 數字, "date": "YYYY-MM-DD", "merchant": "商戶名稱"}。' +
   '不要回傳任何 Markdown 標記或其他文字。若某欄位無法讀取，請回傳 null。'
@@ -62,74 +76,6 @@ function extractJson(text) {
     throw new Error('模型回傳內容不含有效 JSON')
   }
   return JSON.parse(cleaned.slice(start, end + 1))
-}
-
-/* ============================================================
- * 原生 node:https POST 封裝（Promise）
- * 回傳 { status, data }；網路層錯誤（TLS/DNS/逾時）以 reject 拋出
- * ============================================================ */
-function httpsPostJson({ hostname, path: urlPath, headers, bodyObj }) {
-  return new Promise((resolve, reject) => {
-    let body
-    try {
-      body = JSON.stringify(bodyObj)
-    } catch (err) {
-      reject(err)
-      return
-    }
-
-    const req = https.request(
-      {
-        hostname,
-        port: 443,
-        path: urlPath,
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Content-Length': Buffer.byteLength(body),
-          ...headers,
-        },
-      },
-      (res) => {
-        const chunks = []
-        res.on('data', (chunk) => chunks.push(chunk))
-        res.on('end', () => {
-          const raw = Buffer.concat(chunks).toString('utf8')
-          let data
-          try {
-            data = JSON.parse(raw)
-          } catch {
-            data = raw
-          }
-          resolve({ status: res.statusCode, data })
-        })
-        res.on('error', (err) => reject(err))
-      },
-    )
-
-    req.setTimeout(30000, () => {
-      req.destroy(new Error('請求逾時（30 秒）'))
-    })
-    req.on('error', (err) => reject(err))
-    req.write(body)
-    req.end()
-  })
-}
-
-/* 讀取 Token：優先環境變數，其次本地 .env.local（供 Node 直跑測試 / vercel dev） */
-function getGithubToken() {
-  if (process.env.GITHUB_TOKEN) return process.env.GITHUB_TOKEN.trim()
-  try {
-    const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-    const content = readFileSync(path.join(rootDir, '.env.local'), 'utf8')
-    const match = content.match(/^\s*GITHUB_TOKEN\s*=\s*(.+?)\s*$/m)
-    if (match) {
-      return match[1].trim().replace(/^["']|["']$/g, '')
-    }
-  } catch {
-    /* .env.local 不存在或不可讀時忽略 */
-  }
-  return ''
 }
 
 export default async function handler(req, res) {
@@ -158,13 +104,12 @@ export default async function handler(req, res) {
   if (imageB64.startsWith('data:')) {
     const commaIdx = imageB64.indexOf(',')
     if (commaIdx !== -1) {
-      const meta = imageB64.slice(5, commaIdx) // 例如 "image/png;base64"
+      const meta = imageB64.slice(5, commaIdx)
       const metaMime = meta.split(';')[0]
       if (metaMime && metaMime.includes('/')) mime = metaMime
       imageB64 = imageB64.slice(commaIdx + 1)
     }
   }
-  // 容錯：移除所有空白字元（有些客戶端會插入換行）
   imageB64 = imageB64.replace(/\s+/g, '')
 
   if (!imageB64) {
@@ -191,56 +136,32 @@ export default async function handler(req, res) {
     })
   }
 
-  const token = getGithubToken()
-  if (!token) {
-    return res.status(500).json({ error: 'GITHUB_TOKEN 尚未設定（請在 Vercel 環境變數或本地 .env.local 中設定）' })
-  }
-
   try {
     const dataUrl = `data:${mime};base64,${decoded.toString('base64')}`
 
-    // 標準 node:https POST → https://models.inference.ai.azure.com/chat/completions
-    const inferenceRes = await httpsPostJson({
-      hostname: API_HOSTNAME,
-      path: API_PATH,
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-      bodyObj: {
-        model: MODEL_NAME,
-        messages: [
-          {
-            role: 'user',
-            content: [
-              { type: 'text', text: OCR_PROMPT },
-              { type: 'image_url', image_url: { url: dataUrl } },
-            ],
-          },
-        ],
-        temperature: 0.1,
-        max_tokens: 256,
-        response_format: { type: 'json_object' },
-      },
+    // 官方 openai SDK：Chat Completions（GPT-4o-mini Vision）
+    const completion = await client.chat.completions.create({
+      model: MODEL_NAME,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: OCR_PROMPT },
+            { type: 'image_url', image_url: { url: dataUrl } },
+          ],
+        },
+      ],
+      temperature: 0.1,
+      max_tokens: 256,
+      response_format: { type: 'json_object' },
     })
 
-    if (inferenceRes.status < 200 || inferenceRes.status >= 300) {
-      const detail =
-        typeof inferenceRes.data === 'string'
-          ? inferenceRes.data
-          : JSON.stringify(inferenceRes.data || {})
-      console.error('[ocr] GitHub Models API 失敗：', inferenceRes.status, detail)
-      return res.status(inferenceRes.status).json({
-        error: `GitHub Models API 回應失敗（HTTP ${inferenceRes.status}）：${detail.slice(0, 500)}`,
-      })
-    }
-
-    const data = inferenceRes.data || {}
     const text =
-      (data &&
-        data.choices &&
-        data.choices[0] &&
-        data.choices[0].message &&
-        data.choices[0].message.content) ||
+      (completion &&
+        completion.choices &&
+        completion.choices[0] &&
+        completion.choices[0].message &&
+        completion.choices[0].message.content) ||
       ''
 
     const parsed = extractJson(text)
@@ -271,31 +192,13 @@ export default async function handler(req, res) {
       source: 'vercel',
     })
   } catch (err) {
-    // 展開 err.message 與 err.cause，並嘗試取出 response.data 字串化
     const message = (err && err.message) || String(err || '未知錯誤')
     const cause = err && err.cause ? err.cause : null
     const causeText = cause ? (cause.message || String(cause)) : ''
-    let responseDataText = ''
-    try {
-      const respData = err && err.response && err.response.data
-      if (respData !== undefined && respData !== null) {
-        responseDataText = typeof respData === 'string' ? respData : JSON.stringify(respData)
-      }
-    } catch {
-      /* 忽略 response.data 序列化失敗 */
-    }
-    const detailText = [
-      message,
-      causeText ? `原因：${causeText}` : '',
-      responseDataText ? `response: ${responseDataText.slice(0, 500)}` : '',
-    ]
-      .filter(Boolean)
-      .join('；')
-
-    console.error('[ocr] GitHub Models 呼叫失敗：', detailText, err)
+    console.error('[ocr] OpenAI SDK 呼叫失敗：', message, causeText, err)
     return res.status(500).json({
       error: `GitHub Models 呼叫失敗：${message}`,
-      detail: detailText,
+      detail: causeText ? `${message}（原因：${causeText}）` : message,
     })
   }
 }
