@@ -291,6 +291,7 @@ function App() {
   const [ocrFileName, setOcrFileName] = useState('')
   const [ocrError, setOcrError] = useState('')
   const [dragOver, setDragOver] = useState(false)
+  const [receiptImageUrl, setReceiptImageUrl] = useState('')
 
   const amountNum = parseFloat(amount) || 0
   const currentUser = TEST_ACCOUNTS.find((a) => a.id === authUserKey)
@@ -381,6 +382,7 @@ function App() {
     setOcrFileName('')
     setOcrError('')
     setDragOver(false)
+    setReceiptImageUrl('')
     setActionMessage('')
   }
 
@@ -400,6 +402,7 @@ function App() {
       setOcrStatus('done')
       setExpenseDate(result.extractedDate || '')
       setAmount(String(result.extractedAmount))
+      setReceiptImageUrl(result.imageUrl || '')
       setActionMessage(`已由 OCR 自動帶入，可手動修正。`)
     } catch (err) {
       setOcrStatus('error')
@@ -450,6 +453,7 @@ function App() {
     setExpenseDate(claim.date || '')
     setRemark(claim.remark || '')
     setReceipts(claim.receipts || [])
+    setReceiptImageUrl(claim.receiptImageUrl || '')
     setOcrStatus(null)
     setOcrResult(null)
     setOcrFileName('')
@@ -482,6 +486,7 @@ function App() {
                 date: expenseDate,
                 remark,
                 receipts: [...receipts],
+                receiptImageUrl: receiptImageUrl || c.receiptImageUrl || null,
                 status: 'pending_1st',
                 rejectionReason: null,
                 rejectedBy: null,
@@ -506,6 +511,7 @@ function App() {
       date: expenseDate,
       remark,
       receipts: [...receipts],
+      receiptImageUrl: receiptImageUrl || null,
       status: 'pending_1st',
     }
     setClaims((prev) => [newClaim, ...prev])
@@ -927,6 +933,16 @@ function App() {
                         {ocrFileName} · 商戶：{ocrResult.merchant || 'N/A'} · Confidence: {ocrResult.confidence != null ? `${ocrResult.confidence}%` : 'N/A'}
                       </span>
                       <span className="ocr-hint">已由 OCR 自動帶入，可手動修正</span>
+                      {ocrResult.imageUrl && (
+                        <a
+                          className="ocr-image-link"
+                          href={ocrResult.imageUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          🖼 已上傳單據圖片（Supabase Storage）
+                        </a>
+                      )}
                     </div>
                   )}
                   {ocrStatus === 'error' && (

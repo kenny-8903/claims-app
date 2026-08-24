@@ -247,6 +247,10 @@ Each story is logged in the format:
 | AC-1001        | api/ocr.js handler verified via mocked Gemini response → 200 / 2018-12-24 / APOLLO SPECTRA | Vercel Serverless API | Developer wants verified integration | Verified |
 | FR-1101        | Gemini model-name fallback (flash-latest → -001 → flash → pro) resolves 404 | Vercel Serverless API | Developer wants max model compatibility | Complete |
 | AC-1101        | Fallback verified: flash-latest 404 → falls back to flash-001 → 200 | Vercel Serverless API | Developer wants working 404 recovery | Verified |
+| FR-1201        | Image uploaded to Supabase Storage 'receipts' bucket → Public URL | OCR Upload (Frontend) | Applicant wants durable image storage | Complete |
+| FR-1202        | api/ocr.js accepts { imageUrl }; Groq (llama-3.2-11b-vision-preview) primary, Gemini fallback | Vercel Serverless API | Developer wants URL-based OCR | Complete |
+| FR-1203        | Auto-fill amount/date/merchant and save image URL in claim | OCR UI (Form) | Applicant wants one-click OCR | Complete |
+| AC-1201        | Handler verified: Groq path, Gemini fallback (download URL→base64), missing imageUrl 400 | Vercel Serverless API | Developer wants verified URL flow | Verified |
 
 ---
 
