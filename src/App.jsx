@@ -1,6 +1,5 @@
 import { useRef, useState } from 'react'
 import './App.css'
-import { processReceiptOCR } from './services/ocrService'
 
 /* ===== SVG 線條圖示（無 Emoji） ===== */
 const SvgIcon = ({ size = 16, children, className = '' }) => (
@@ -286,10 +285,6 @@ function App() {
   const [rejectionReason, setRejectionReason] = useState('')
   const [rejectError, setRejectError] = useState('')
   const fileInputRef = useRef(null)
-  const [ocrStatus, setOcrStatus] = useState(null) // null | 'loading' | 'done' | 'error'
-  const [ocrResult, setOcrResult] = useState(null)
-  const [ocrFileName, setOcrFileName] = useState('')
-  const [ocrError, setOcrError] = useState('')
   const [dragOver, setDragOver] = useState(false)
   const [receiptImageUrl, setReceiptImageUrl] = useState('')
 
@@ -377,10 +372,6 @@ function App() {
     setRemark('')
     setReceipts([])
     setEditingClaimId(null)
-    setOcrStatus(null)
-    setOcrResult(null)
-    setOcrFileName('')
-    setOcrError('')
     setDragOver(false)
     setReceiptImageUrl('')
     setActionMessage('')
@@ -390,24 +381,18 @@ function App() {
     setReceipts((prev) => prev.filter((f) => f !== fileName))
   }
 
-  /* ===== OCR / AI 分析：自動帶入日期與金額 ===== */
-  const analyzeReceipt = async (file) => {
-    setOcrStatus('loading')
-    setOcrFileName(file.name)
-    setOcrResult(null)
-    setOcrError('')
+  /* ===== 單據圖片本地預覽（純手動輸入模式，不做任何 AI 辨識） ===== */
+  const showReceiptPreview = (file) => {
     try {
-      const result = await processReceiptOCR(file)
-      setOcrResult(result)
-      setOcrStatus('done')
-      setExpenseDate(result.extractedDate || '')
-      setAmount(String(result.extractedAmount))
-      setReceiptImageUrl(result.imageUrl || '')
-      setActionMessage(`已由 OCR 自動帶入，可手動修正。`)
+      // 釋放舊的 blob URL
+      if (receiptImageUrl && receiptImageUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(receiptImageUrl)
+      }
+      const objectUrl = URL.createObjectURL(file)
+      setReceiptImageUrl(objectUrl)
+      setActionMessage('單據圖片已上傳，請手動填寫金額、日期與商戶。')
     } catch (err) {
-      setOcrStatus('error')
-      setOcrError(err.message || '未知錯誤')
-      setActionMessage(`❌ API 失敗: ${err.message}`)
+      console.error('[App] 建立圖片預覽失敗：', err)
     }
   }
 
@@ -420,10 +405,10 @@ function App() {
       return [...prev, ...names.filter((n) => !existing.has(n))]
     })
     setActionMessage(`已追加 ${files.length} 個檔案。`)
-    // 對該批第一張圖片執行 PaddleOCR 辨識
+    // 對該批第一張圖片建立本地預覽
     const imageFile = Array.from(files).find((f) => f.type && f.type.startsWith('image/'))
     if (imageFile) {
-      analyzeReceipt(imageFile)
+      showReceiptPreview(imageFile)
     }
     return imageFile
   }
@@ -454,10 +439,6 @@ function App() {
     setRemark(claim.remark || '')
     setReceipts(claim.receipts || [])
     setReceiptImageUrl(claim.receiptImageUrl || '')
-    setOcrStatus(null)
-    setOcrResult(null)
-    setOcrFileName('')
-    setOcrError('')
     setDragOver(false)
     setActiveModule('new-claim')
     setActionMessage(`正在重新編輯 ${claim.id}：修改內容並補交文件後，按「重新提交」即可再次送審。`)
@@ -920,33 +901,16 @@ function App() {
                     </button>
                   </div>
 
-                  {/* OCR / AI 分析狀態 */}
-                  {ocrStatus === 'loading' && (
-                    <p className="ocr-badge ocr-badge--loading">✨ Gemini 1.5 Flash AI 辨識中...</p>
-                  )}
-                  {ocrStatus === 'done' && ocrResult && (
+                  {/* 單據圖片本地預覽（純手動輸入） */}
+                  {receiptImageUrl && (
                     <div className="ocr-result">
-                      <span className={`ocr-badge ${ocrResult.engine === 'gemini' ? 'ocr-badge--gemini' : 'ocr-badge--mock'}`}>
-                        {ocrResult.statusLabel || '✨ Gemini 1.5 Flash AI 辨識成功'}
-                      </span>
-                      <span className="ocr-meta">
-                        {ocrFileName} · 商戶：{ocrResult.merchant || 'N/A'} · Confidence: {ocrResult.confidence != null ? `${ocrResult.confidence}%` : 'N/A'}
-                      </span>
-                      <span className="ocr-hint">已由 OCR 自動帶入，可手動修正</span>
-                      {ocrResult.imageUrl && (
-                        <a
-                          className="ocr-image-link"
-                          href={ocrResult.imageUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          🖼 已上傳單據圖片（Supabase Storage）
-                        </a>
-                      )}
+                      <img
+                        className="receipt-preview"
+                        src={receiptImageUrl}
+                        alt="單據圖片預覽"
+                      />
+                      <span className="ocr-hint">單據圖片已載入，請手動填寫金額、日期與商戶。</span>
                     </div>
-                  )}
-                  {ocrStatus === 'error' && (
-                    <p className="ocr-badge ocr-badge--error">❌ API 失敗: {ocrError || '未知錯誤'}</p>
                   )}
                   {receipts.length > 0 && (
                     <ul className="file-list">

@@ -254,6 +254,8 @@ Each story is logged in the format:
 | FR-1301        | api/ocr.js uses Gemini SDK (process.env.GEMINI_API_KEY, gemini-1.5-flash) with base64 input | Vercel Serverless API | Developer wants focused Gemini integration | Complete |
 | FR-1302        | Frontend reads VITE_SUPABASE_URL gracefully; missing env does not surface UI warnings | OCR Service (Frontend) | Developer wants clean UI | Complete |
 | AC-1301        | Handler + frontend verified: base64 flow, no-env fallback, auto-fill | OCR Service | Developer wants finalized integration | Verified |
+| FR-1401        | All AI OCR deps removed; manual entry mode (URL.createObjectURL preview) | OCR Removal | User wants manual receipt entry | Complete |
+| AC-1401        | No OCR/API references remain in src/; lint + build pass | OCR Removal | Developer wants clean codebase | Verified |
 
 ---
 
