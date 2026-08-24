@@ -4,9 +4,10 @@
  * 前端上傳 Base64 圖片 → Server 端呼叫 GitHub Models (GPT-4o-mini Vision)
  * 透過 Server 端呼叫，徹底避開「香港 IP 在前端瀏覽器直接呼叫 AI」的地區限制。
  *
- * 環境變數：GITHUB_TOKEN
+ * 環境變數：GITHUB_TOKEN（必要）
  *   - 正式環境：Vercel Project → Settings → Environment Variables
  *   - 本地測試：寫入 .env.local 並使用 `vercel dev`（或 npx vercel dev）
+ *   - Token 未設定時回傳 500 錯誤（不再於程式碼內硬編碼 Token）
  *
  * 請求：POST /api/ocr
  *   { "image": "<base64>", "mimeType": "image/jpeg", "fileName": "x.jpg" }
