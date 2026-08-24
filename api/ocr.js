@@ -22,9 +22,15 @@
  * ============================================================ */
 
 import https from 'node:https'
+import { readFileSync } from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 const MODEL_NAME = 'gpt-4o-mini'
-const CHAT_COMPLETIONS_URL = 'https://models.inference.ai.azure.com/chat/completions'
+
+/* GitHub Models 正確主機與路徑（Azure AI Foundry / OpenAI 相容格式） */
+const API_HOSTNAME = 'models.inference.ai.azure.com'
+const API_PATH = '/chat/completions'
 
 /* Base64 字串長度上限（原圖約 3MB）；Vercel Node 函式 body 上限 4.5MB */
 const MAX_BASE64_LENGTH = 4 * 1024 * 1024
@@ -62,7 +68,7 @@ function extractJson(text) {
  * 原生 node:https POST 封裝（Promise）
  * 回傳 { status, data }；網路層錯誤（TLS/DNS/逾時）以 reject 拋出
  * ============================================================ */
-function httpsPostJson(url, headers, bodyObj) {
+function httpsPostJson({ hostname, path: urlPath, headers, bodyObj }) {
   return new Promise((resolve, reject) => {
     let body
     try {
@@ -72,19 +78,11 @@ function httpsPostJson(url, headers, bodyObj) {
       return
     }
 
-    let urlObj
-    try {
-      urlObj = new URL(url)
-    } catch (err) {
-      reject(err)
-      return
-    }
-
     const req = https.request(
       {
-        hostname: urlObj.hostname,
-        port: urlObj.port || 443,
-        path: `${urlObj.pathname}${urlObj.search}`,
+        hostname,
+        port: 443,
+        path: urlPath,
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -116,6 +114,22 @@ function httpsPostJson(url, headers, bodyObj) {
     req.write(body)
     req.end()
   })
+}
+
+/* 讀取 Token：優先環境變數，其次本地 .env.local（供 Node 直跑測試 / vercel dev） */
+function getGithubToken() {
+  if (process.env.GITHUB_TOKEN) return process.env.GITHUB_TOKEN.trim()
+  try {
+    const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+    const content = readFileSync(path.join(rootDir, '.env.local'), 'utf8')
+    const match = content.match(/^\s*GITHUB_TOKEN\s*=\s*(.+?)\s*$/m)
+    if (match) {
+      return match[1].trim().replace(/^["']|["']$/g, '')
+    }
+  } catch {
+    /* .env.local 不存在或不可讀時忽略 */
+  }
+  return ''
 }
 
 export default async function handler(req, res) {
@@ -177,19 +191,22 @@ export default async function handler(req, res) {
     })
   }
 
-  const token = process.env.GITHUB_TOKEN
+  const token = getGithubToken()
   if (!token) {
-    return res.status(500).json({ error: 'GITHUB_TOKEN 尚未設定（請在 Vercel 環境變數中設定）' })
+    return res.status(500).json({ error: 'GITHUB_TOKEN 尚未設定（請在 Vercel 環境變數或本地 .env.local 中設定）' })
   }
 
   try {
     const dataUrl = `data:${mime};base64,${decoded.toString('base64')}`
 
-    // 原生 node:https 呼叫 GitHub Models（OpenAI 相容格式）Chat Completions
-    const inferenceRes = await httpsPostJson(
-      CHAT_COMPLETIONS_URL,
-      { Authorization: `Bearer ${token}` },
-      {
+    // 標準 node:https POST → https://models.inference.ai.azure.com/chat/completions
+    const inferenceRes = await httpsPostJson({
+      hostname: API_HOSTNAME,
+      path: API_PATH,
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      bodyObj: {
         model: MODEL_NAME,
         messages: [
           {
@@ -204,7 +221,7 @@ export default async function handler(req, res) {
         max_tokens: 256,
         response_format: { type: 'json_object' },
       },
-    )
+    })
 
     if (inferenceRes.status < 200 || inferenceRes.status >= 300) {
       const detail =

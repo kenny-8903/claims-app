@@ -13,6 +13,12 @@ export default defineConfig([
     },
   },
   {
+    files: ['api-server/**/*.js'],
+    languageOptions: {
+      globals: { ...globals.node, ...globals.commonjs },
+    },
+  },
+  {
     files: ['**/*.{js,jsx}'],
     extends: [
       js.configs.recommended,

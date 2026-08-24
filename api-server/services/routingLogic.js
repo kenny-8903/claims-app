@@ -1,5 +1,5 @@
 function determineApprovalFlow(amount, isPreApproved) {
-  let requiredLevels = [];
+  let requiredLevels
 
   // 1. Threshold-Based Routing
   if (amount <= 1000) {

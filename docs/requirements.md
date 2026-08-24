@@ -128,6 +128,8 @@ Each story is logged in the format:
 - **Acceptance Criteria**
   - AC-601: Handler success path, 401 (Bad credentials), and missing-token paths verified via mocks.
   - AC-602: `GITHUB_TOKEN` stored in git-ignored `.env.local`, never committed.
+  - AC-603: `api/ocr.js` posts to `models.inference.ai.azure.com/chat/completions` via `node:https`; token falls back to `.env.local`.
+  - AC-604: Root `npm run lint` and backend CI (ruff + import smoke test) both pass.
 
 - **Acceptance Criteria**
   - AC-101: Logging in as Testing1 shows only own claims and no approval queue.
@@ -207,6 +209,8 @@ Each story is logged in the format:
 | FR-604         | GitHub success tag + "❌ API 失敗" error UI      | OCR UI + Service          | User wants clear engine/error feedback        | Complete    |
 | AC-601         | Success / 401 / no-token paths verified          | Vercel Serverless API     | Developer wants verified integration          | Verified    |
 | AC-602         | GITHUB_TOKEN only in git-ignored .env.local      | Env Config                | Developer wants token secrecy                 | Verified    |
+| AC-603         | Explicit endpoint + .env.local token fallback    | Vercel Serverless API     | Developer wants reliable endpoint config      | Verified    |
+| AC-604         | npm run lint + backend CI (ruff/smoke) pass      | CI & Lint                 | Developer wants green CI                      | Verified    |
 
 ---
 
