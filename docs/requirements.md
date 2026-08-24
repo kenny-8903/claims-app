@@ -234,6 +234,10 @@ Each story is logged in the format:
 | FR-705         | "❌ 辨識失敗: [錯誤訊息]" on failure             | OCR UI (Upload)           | Applicant wants clear error feedback          | Complete    |
 | AC-701         | lint + build pass with tesseract.js              | Delivery Validation       | Developer wants buildable code                | Verified    |
 | AC-702         | Amount/date regex cases verified                 | OCR Service (Tesseract)   | Developer wants reliable extraction           | Verified    |
+| FR-801         | Real Tesseract.recognize(file, 'eng') + raw text log | OCR Service (Tesseract) | Developer wants true image OCR              | Complete    |
+| FR-802         | Amount from TOTAL/HKD/$ labels; date from English month names | OCR Service (Tesseract) | Applicant wants accurate extraction      | Complete    |
+| FR-803         | No mock data / no hardcoded amounts / no new Date() fallback | OCR Service (Tesseract) | Developer wants real recognition only   | Complete    |
+| AC-801         | Real receipt test: TOTAL HKD 200.00 + DEC 24 2018 → 200 / 2018-12-24 (not 268/2026) | OCR Service (Tesseract) | Developer wants verified end-to-end OCR | Verified    |
 
 ---
 

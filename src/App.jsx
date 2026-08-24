@@ -398,7 +398,7 @@ function App() {
       const result = await processReceiptOCR(file)
       setOcrResult(result)
       setOcrStatus('done')
-      setExpenseDate(result.extractedDate)
+      setExpenseDate(result.extractedDate || '')
       setAmount(String(result.extractedAmount))
       setActionMessage(`已由 OCR 自動帶入，可手動修正。`)
     } catch (err) {
@@ -924,7 +924,7 @@ function App() {
                         {ocrResult.statusLabel || '✨ Tesseract 本地 AI 辨識成功'}
                       </span>
                       <span className="ocr-meta">
-                        {ocrFileName} · 商戶：{ocrResult.merchant} · Confidence: {ocrResult.confidence}%
+                        {ocrFileName} · 商戶：{ocrResult.merchant || 'N/A'} · Confidence: {ocrResult.confidence != null ? `${ocrResult.confidence}%` : 'N/A'}
                       </span>
                       <span className="ocr-hint">已由 OCR 自動帶入，可手動修正</span>
                     </div>
