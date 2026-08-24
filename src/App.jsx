@@ -404,7 +404,7 @@ function App() {
     } catch (err) {
       setOcrStatus('error')
       setOcrError(err.message || '未知錯誤')
-      setActionMessage(`❌ API 失敗: ${err.message}`)
+      setActionMessage(`❌ 辨識失敗: ${err.message}`)
     }
   }
 
@@ -916,12 +916,12 @@ function App() {
 
                   {/* OCR / AI 分析狀態 */}
                   {ocrStatus === 'loading' && (
-                    <p className="ocr-badge ocr-badge--loading">✨ OCR / AI 引擎分析中...</p>
+                    <p className="ocr-badge ocr-badge--loading">✨ Tesseract 本地 AI 辨識中...</p>
                   )}
                   {ocrStatus === 'done' && ocrResult && (
                     <div className="ocr-result">
-                      <span className={`ocr-badge ${ocrResult.engine === 'github' ? 'ocr-badge--gemini' : 'ocr-badge--mock'}`}>
-                        {ocrResult.statusLabel || '✨ GitHub GPT-4o-mini Vision 辨識成功'}
+                      <span className={`ocr-badge ${ocrResult.engine === 'tesseract' ? 'ocr-badge--gemini' : 'ocr-badge--mock'}`}>
+                        {ocrResult.statusLabel || '✨ Tesseract 本地 AI 辨識成功'}
                       </span>
                       <span className="ocr-meta">
                         {ocrFileName} · 商戶：{ocrResult.merchant} · Confidence: {ocrResult.confidence}%
@@ -930,7 +930,7 @@ function App() {
                     </div>
                   )}
                   {ocrStatus === 'error' && (
-                    <p className="ocr-badge ocr-badge--error">❌ API 失敗: {ocrError || '未知錯誤'}</p>
+                    <p className="ocr-badge ocr-badge--error">❌ 辨識失敗: {ocrError || '未知錯誤'}</p>
                   )}
                   {receipts.length > 0 && (
                     <ul className="file-list">

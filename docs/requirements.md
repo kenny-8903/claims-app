@@ -17,6 +17,8 @@ Each story is logged in the format:
 - As an **approver**, I want **to reject claims with a mandatory reason** so that **applicants know exactly what to fix**.
 - As an **applicant**, I want **to resubmit a rejected claim with edited documents** so that **I can fix issues and re-enter the approval flow**.
 - As an **applicant**, I want **receipt OCR to auto-fill date and amount** so that **I can submit claims faster and with fewer typos**.
+- As a **developer**, I want **OCR to run locally in the browser with Tesseract.js** so that **no network/API dependency is needed for receipt recognition**.
+
 - As a **developer**, I want **a Local-mock / Vercel-real-AI dual-mode OCR** so that **local demos stay offline while production gets real Gemini AI**.
 - As a **developer**, I want **a Vercel Serverless OCR relay API** so that **Gemini is called from the server and the Hong Kong IP geo-restriction is bypassed**.
 - As a **developer**, I want **OCR to run on GitHub Models GPT-4o-mini Vision via GITHUB_TOKEN** so that **the Vercel relay works with a GitHub token**.
@@ -128,6 +130,20 @@ Each story is logged in the format:
 - **Acceptance Criteria**
   - AC-601: Handler success path, 401 (Bad credentials), and missing-token paths verified via mocks.
   - AC-602: `GITHUB_TOKEN` stored in git-ignored `.env.local`, never committed.
+
+### User Story: Client-Side OCR with Tesseract.js (No Server API)
+
+- **Functional Requirements**
+  - FR-701: `tesseract.js` installed and `processReceiptOCR(file)` recognizes receipt images entirely in the browser (`chi_tra+eng`).
+  - FR-702: No calls to `/api/ocr` or any external Serverless API from the frontend service.
+  - FR-703: Regex extracts amount (`$` / `HKD` / `Total` / `金額` labels) and date (`YYYY-MM-DD` / `YYYY/MM/DD` / `DD/MM/YYYY`).
+  - FR-704: Success shows status label "✨ Tesseract 本地 AI 辨識成功" and auto-fills amount/date.
+  - FR-705: Failure shows "❌ 辨識失敗: [錯誤訊息]".
+
+- **Acceptance Criteria**
+  - AC-701: `npm run lint` passes and `npm run build` succeeds with `tesseract.js`.
+  - AC-702: Amount/date extraction regex verified for `HK$ 128.00`, `1,250.50`, `金額 88.50`, `2026-08-24`, `2026/08/24`, `24/08/2026`.
+
   - AC-603: `api/ocr.js` posts to `models.inference.ai.azure.com/chat/completions` via `node:https`; token falls back to `.env.local`.
   - AC-604: Root `npm run lint` and backend CI (ruff + import smoke test) both pass.
 
@@ -211,6 +227,13 @@ Each story is logged in the format:
 | AC-602         | GITHUB_TOKEN only in git-ignored .env.local      | Env Config                | Developer wants token secrecy                 | Verified    |
 | AC-603         | Explicit endpoint + .env.local token fallback    | Vercel Serverless API     | Developer wants reliable endpoint config      | Verified    |
 | AC-604         | npm run lint + backend CI (ruff/smoke) pass      | CI & Lint                 | Developer wants green CI                      | Verified    |
+| FR-701         | Tesseract.js local recognition (chi_tra+eng)     | OCR Service (Tesseract)   | Developer wants offline OCR                   | Complete    |
+| FR-702         | No /api/ocr or serverless calls                  | OCR Service (Tesseract)   | Developer wants no network dependency         | Complete    |
+| FR-703         | Regex amount/date extraction                     | OCR Service (Tesseract)   | Applicant wants auto-fill                     | Complete    |
+| FR-704         | "✨ Tesseract 本地 AI 辨識成功" + auto-fill      | OCR UI (Upload)           | Applicant wants local OCR feedback            | Complete    |
+| FR-705         | "❌ 辨識失敗: [錯誤訊息]" on failure             | OCR UI (Upload)           | Applicant wants clear error feedback          | Complete    |
+| AC-701         | lint + build pass with tesseract.js              | Delivery Validation       | Developer wants buildable code                | Verified    |
+| AC-702         | Amount/date regex cases verified                 | OCR Service (Tesseract)   | Developer wants reliable extraction           | Verified    |
 
 ---
 
