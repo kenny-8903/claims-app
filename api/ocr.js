@@ -40,12 +40,10 @@ function getGeminiApiKey() {
 /* Gemini 客戶端（Server 端初始化） */
 const genAI = new GoogleGenerativeAI(getGeminiApiKey())
 
-/* 模型名稱（gemini-2.0-flash 優先；失敗自動 fallback 至 gemini-1.5-flash 等） */
+/* 模型名稱（僅使用標準 ID：gemini-2.0-flash 優先，gemini-1.5-flash fallback） */
 const GEMINI_MODELS = [
   'gemini-2.0-flash',
   'gemini-1.5-flash',
-  'gemini-1.5-flash-latest',
-  'gemini-1.5-flash-001',
 ]
 
 /* Base64 壓縮防護：限制字串長度（原圖約 3MB）與解碼後位元組數 */
