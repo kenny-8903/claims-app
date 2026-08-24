@@ -238,6 +238,10 @@ Each story is logged in the format:
 | FR-802         | Amount from TOTAL/HKD/$ labels; date from English month names | OCR Service (Tesseract) | Applicant wants accurate extraction      | Complete    |
 | FR-803         | No mock data / no hardcoded amounts / no new Date() fallback | OCR Service (Tesseract) | Developer wants real recognition only   | Complete    |
 | AC-801         | Real receipt test: TOTAL HKD 200.00 + DEC 24 2018 → 200 / 2018-12-24 (not 268/2026) | OCR Service (Tesseract) | Developer wants verified end-to-end OCR | Verified    |
+| FR-901         | Client-side Gemini 1.5 Flash SDK via @google/generative-ai | OCR Service (Gemini) | Developer wants no serverless connection dependency | Complete |
+| FR-902         | inlineData (Base64) sent directly from the browser; strict JSON prompt | OCR Service (Gemini) | Applicant wants accurate extraction | Complete |
+| FR-903         | Success label "✨ Gemini 1.5 Flash AI 辨識成功" + auto-fill | OCR UI (Upload) | Applicant wants clear AI feedback | Complete |
+| AC-901         | processReceiptOCR verified via mocked Gemini response → 200 / 2018-12-24 / APOLLO SPECTRA | OCR Service (Gemini) | Developer wants verified integration | Verified |
 
 ---
 
