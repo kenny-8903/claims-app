@@ -44,9 +44,9 @@ const genAI = new GoogleGenerativeAI(getGeminiApiKey())
 
 /* 模型名稱 fallback（最大相容性：依序嘗試，避免單一模型名稱 404） */
 const GEMINI_MODELS = [
+  'gemini-1.5-flash',
   'gemini-1.5-flash-latest',
   'gemini-1.5-flash-001',
-  'gemini-1.5-flash',
   'gemini-1.5-pro',
 ]
 
