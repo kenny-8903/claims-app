@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import './App.css'
+import { processReceiptOCR } from './services/ocrService'
 
 /* ===== SVG 線條圖示（無 Emoji） ===== */
 const SvgIcon = ({ size = 16, children, className = '' }) => (
@@ -99,13 +100,6 @@ const IconHistory = (p) => (
 )
 
 /* ===== 靜態資料 ===== */
-const STEPS = [
-  { id: 1, label: '申請內容' },
-  { id: 2, label: '上載單據' },
-  { id: 3, label: '審批分流' },
-  { id: 4, label: '覆核遞交' },
-]
-
 const EXPENSE_CATEGORIES = ['交通費', '辦公雜費', '餐飲應酬', '緊急採購']
 
 /* 測試帳號（登入用，密碼皆為 123456） */
@@ -118,10 +112,11 @@ const TEST_ACCOUNTS = [
     initials: 'T1',
     dept: 'Operations',
     accessLevel: 1,
-    roleLabel: 'Tier 1 Staff',
+    roleLabel: 'Operations Staff',
     isLevel1: false,
     isLevel2: false,
-    desc: '普通申請人：可填寫報銷單並追蹤審批狀態',
+    isLevel3: false,
+    desc: 'Operations Staff：僅可建立與檢視自己的申請',
   },
   {
     id: 't2',
@@ -129,12 +124,13 @@ const TEST_ACCOUNTS = [
     password: '123456',
     name: 'Testing2',
     initials: 'T2',
-    dept: 'Operations',
+    dept: 'General Management',
     accessLevel: 2,
-    roleLabel: 'Tier 2 Manager',
+    roleLabel: 'GM (General Manager)',
     isLevel1: true,
     isLevel2: false,
-    desc: '第 1 層審批人：可審批待部門主管審批的單據',
+    isLevel3: false,
+    desc: 'General Manager (GM)：一級審批人（第 1 層審批）',
   },
   {
     id: 't3',
@@ -142,21 +138,40 @@ const TEST_ACCOUNTS = [
     password: '123456',
     name: 'Testing3',
     initials: 'T3',
-    dept: 'Finance & Admin',
+    dept: 'Executive',
     accessLevel: 3,
-    roleLabel: 'Tier 3 Finance',
+    roleLabel: 'CEO',
     isLevel1: false,
     isLevel2: true,
-    desc: '第 2 層審批人：可審批待財務審批的單據及管理權限',
+    isLevel3: false,
+    desc: 'CEO：二級高階審批人（第 2 層審批）',
+  },
+  {
+    id: 't4',
+    username: 'Testing4',
+    password: '123456',
+    name: 'Testing4',
+    initials: 'T4',
+    dept: 'Finance & Admin',
+    accessLevel: 4,
+    roleLabel: 'Finance & Admin',
+    isLevel1: false,
+    isLevel2: false,
+    isLevel3: true,
+    desc: 'Finance & Admin：終極審批/放款人（最終批核）',
   },
 ]
 
 /* 權限層級描述 */
 const LEVEL_CONFIG = {
-  1: { label: 'Level 1', role: '普通申請人', sub: 'Applicant' },
-  2: { label: 'Level 2', role: '審批人', sub: 'Approver' },
-  3: { label: 'Level 3', role: '系統管理員', sub: 'Admin' },
+  1: { label: 'Level 1', role: 'Operations Staff', sub: 'Applicant' },
+  2: { label: 'Level 2', role: 'General Manager', sub: 'GM / 1st Approver' },
+  3: { label: 'Level 3', role: 'CEO', sub: '2nd Senior Approver' },
+  4: { label: 'Level 4', role: 'Finance & Admin', sub: 'Final Approver' },
 }
+
+/* 動態金額分流門檻：金額 >= $10,000 需加經 CEO（第 2 層）審批 */
+const ROUTING_THRESHOLD = 10000
 
 /* 登入持久化 key */
 const AUTH_STORAGE_KEY = 'csg_auth_user'
@@ -188,50 +203,60 @@ const MENU_ITEMS = [
     label: '權限管理',
     sub: 'User & Role Management',
     icon: IconUsers,
-    minLevel: 3,
+    minLevel: 4,
   },
 ]
 
-/* 單據狀態機（雙層多級審批） */
+/* 單據狀態機（四層角色・動態金額分流） */
 const STATUS_CONFIG = {
   pending_1st: {
-    label: '待部門主管審批',
-    en: 'Pending 1st Approval',
+    label: '待 GM 審批',
+    en: 'Pending 1st Approval (GM)',
     className: 'status-badge--pending-1st',
   },
   pending_2nd: {
-    label: '待財務審批',
-    en: 'Pending 2nd Approval',
+    label: '待 CEO 審批',
+    en: 'Pending 2nd Approval (CEO)',
     className: 'status-badge--pending-2nd',
   },
+  pending_3rd: {
+    label: '待財務最終批核',
+    en: 'Pending Final Approval (Finance)',
+    className: 'status-badge--pending-3rd',
+  },
   approved: {
-    label: '已完成核准',
-    en: 'Fully Approved',
+    label: '已核准放款',
+    en: 'Fully Approved & Disbursed',
     className: 'status-badge--approved',
   },
   rejected: {
-    label: '已駁回',
-    en: 'Rejected',
+    label: '已被駁回',
+    en: 'Rejected / Pending Resubmission',
     className: 'status-badge--rejected',
   },
 }
 
 /* 預置員工資料（權限管理用） */
 const INITIAL_EMPLOYEES = [
-  { id: 'emp1', name: 'Testing1', initials: 'T1', dept: 'Operations', accessLevel: 1, isLevel1: false, isLevel2: false },
-  { id: 'emp2', name: 'Testing2', initials: 'T2', dept: 'Operations', accessLevel: 2, isLevel1: true, isLevel2: false },
-  { id: 'emp3', name: 'Testing3', initials: 'T3', dept: 'Finance & Admin', accessLevel: 3, isLevel1: false, isLevel2: true },
-  { id: 'emp4', name: 'Sarah Wong', initials: 'SW', dept: 'Finance', accessLevel: 2, isLevel1: false, isLevel2: true },
-  { id: 'emp5', name: 'Michael Chan', initials: 'MC', dept: 'Operations', accessLevel: 2, isLevel1: true, isLevel2: false },
-  { id: 'emp6', name: 'Grace Leung', initials: 'GL', dept: 'HR', accessLevel: 1, isLevel1: false, isLevel2: false },
+  { id: 'emp1', name: 'Testing1', initials: 'T1', dept: 'Operations', accessLevel: 1, isLevel1: false, isLevel2: false, isLevel3: false },
+  { id: 'emp2', name: 'Testing2', initials: 'T2', dept: 'General Management', accessLevel: 2, isLevel1: true, isLevel2: false, isLevel3: false },
+  { id: 'emp3', name: 'Testing3', initials: 'T3', dept: 'Executive', accessLevel: 3, isLevel1: false, isLevel2: true, isLevel3: false },
+  { id: 'emp4', name: 'Testing4', initials: 'T4', dept: 'Finance & Admin', accessLevel: 4, isLevel1: false, isLevel2: false, isLevel3: true },
+  { id: 'emp5', name: 'Sarah Wong', initials: 'SW', dept: 'Finance', accessLevel: 4, isLevel1: false, isLevel2: false, isLevel3: true },
+  { id: 'emp6', name: 'Michael Chan', initials: 'MC', dept: 'Operations', accessLevel: 2, isLevel1: true, isLevel2: false, isLevel3: false },
+  { id: 'emp7', name: 'Grace Leung', initials: 'GL', dept: 'HR', accessLevel: 1, isLevel1: false, isLevel2: false, isLevel3: false },
 ]
 
-/* 預置單據（涵蓋各審批階段） */
+/* 預置單據（Sample：涵蓋不同金額、審批階段與駁回狀態） */
 const INITIAL_CLAIMS = [
-  { id: 'CL-2026-001', applicant: 'Chen Ka Fai', applicantInitials: 'CK', department: 'Operations', category: '交通費', amount: 860, date: '2026-08-14', remark: '客戶會議往返的士費用', status: 'pending_1st' },
-  { id: 'CL-2026-002', applicant: 'Lau Pui Yan', applicantInitials: 'LP', department: 'Finance', category: '辦公雜費', amount: 1240, date: '2026-08-15', remark: '辦公室文具及打印耗材', status: 'pending_1st' },
-  { id: 'CL-2026-003', applicant: 'Ng Wing Sze', applicantInitials: 'NW', department: 'Operations', category: '餐飲應酬', amount: 3200, date: '2026-08-16', remark: '與供應商聚餐商討合約', status: 'pending_2nd' },
-  { id: 'CL-2026-004', applicant: 'Lee Ka Ho', applicantInitials: 'LH', department: 'HR', category: '緊急採購', amount: 6800, date: '2026-08-17', remark: '緊急更換辦公室影印機', status: 'pending_2nd' },
+  // CL-2026-001：低於門檻（< $10,000），待 GM 審核
+  { id: 'CL-2026-001', applicant: 'Testing1', applicantInitials: 'T1', department: 'Operations', category: '交通費', amount: 3500, date: '2026-08-14', remark: '拜訪客戶往返之的士費用', receipts: ['taxi-receipt-001.pdf'], status: 'pending_1st' },
+  // CL-2026-002：達門檻（>= $10,000），待 GM 審核
+  { id: 'CL-2026-002', applicant: 'Testing1', applicantInitials: 'T1', department: 'Operations', category: '緊急採購', amount: 18000, date: '2026-08-15', remark: '緊急採購辦公室設備（高金額）', receipts: ['quotation-002.pdf', 'invoice-002.pdf'], status: 'pending_1st' },
+  // CL-2026-003：已被 GM 駁回，等待重新編輯 / 補交文件
+  { id: 'CL-2026-003', applicant: 'Testing1', applicantInitials: 'T1', department: 'Operations', category: '餐飲應酬', amount: 2500, date: '2026-08-16', remark: '與供應商聚餐商討合作細節', receipts: ['meal-receipt-003.jpg'], status: 'rejected', rejectionReason: '請補上正本收據及發票', rejectedBy: 'Testing2（GM (General Manager)）', rejectedAt: '2026-08-17T09:30:00' },
+  // CL-2026-004：達門檻（>= $10,000），GM 已批，待 CEO 審核
+  { id: 'CL-2026-004', applicant: 'Testing1', applicantInitials: 'T1', department: 'Operations', category: '辦公雜費', amount: 12000, date: '2026-08-18', remark: '年度辦公室文具及打印耗材', receipts: ['supplier-invoice-004.pdf'], status: 'pending_2nd' },
 ]
 
 function App() {
@@ -244,8 +269,6 @@ function App() {
     }
   })
   const [activeModule, setActiveModule] = useState('new-claim')
-  const [currentStep, setCurrentStep] = useState(1)
-  const [applicant, setApplicant] = useState('')
   const [department, setDepartment] = useState('')
   const [category, setCategory] = useState('')
   const [amount, setAmount] = useState('')
@@ -258,18 +281,31 @@ function App() {
   const [loginUsername, setLoginUsername] = useState('')
   const [loginPassword, setLoginPassword] = useState('')
   const [loginError, setLoginError] = useState('')
+  const [editingClaimId, setEditingClaimId] = useState(null)
+  const [rejectTargetId, setRejectTargetId] = useState(null)
+  const [rejectionReason, setRejectionReason] = useState('')
+  const [rejectError, setRejectError] = useState('')
+  const fileInputRef = useRef(null)
+  const [ocrStatus, setOcrStatus] = useState(null) // null | 'loading' | 'done' | 'error'
+  const [ocrResult, setOcrResult] = useState(null)
+  const [ocrFileName, setOcrFileName] = useState('')
+  const [dragOver, setDragOver] = useState(false)
 
   const amountNum = parseFloat(amount) || 0
   const currentUser = TEST_ACCOUNTS.find((a) => a.id === authUserKey)
   const currentLevel = currentUser ? LEVEL_CONFIG[currentUser.accessLevel] : null
 
-  /* 動態計算審批路徑（雙層） */
+  /* 動態計算審批路徑（依金額分流：低於門檻跳過 CEO） */
   const approvalRoute = () => {
     if (!amount || amountNum <= 0) return []
-    return [
-      { id: 'l1', name: '第 1 層：部門主管', code: '1ST', icon: IconUsers },
-      { id: 'l2', name: '第 2 層：財務經理', code: '2ND', icon: IconDollar },
+    const steps = [
+      { id: 'l1', name: '第 1 層審批：GM', code: '1ST', icon: IconUsers },
     ]
+    if (amountNum >= ROUTING_THRESHOLD) {
+      steps.push({ id: 'l2', name: '第 2 層審批：CEO', code: '2ND', icon: IconShield })
+    }
+    steps.push({ id: 'l3', name: '最終批核：Finance & Admin', code: 'FINAL', icon: IconDollar })
+    return steps
   }
 
   /* ===== 登入（帳號/密碼驗證）/ 登出 ===== */
@@ -316,36 +352,106 @@ function App() {
 
   const handleModuleClick = (item) => {
     setActiveModule(item.id)
+    setEditingClaimId(null)
     setActionMessage('')
   }
 
   /* ===== 申請人動作：載入範例 / 清除 / 儲存草稿 / 遞交 ===== */
   const loadExample = () => {
-    setApplicant(currentUser.name)
     setDepartment(currentUser.dept)
     setCategory('交通費')
     setAmount('4500')
     setExpenseDate('2026-08-12')
     setRemark('出差拜訪客戶往返之交通費用，共 3 程。')
     setReceipts(['receipt.pdf'])
-    setCurrentStep(1)
     setActionMessage('')
   }
 
   const clearForm = () => {
-    setApplicant(currentUser.name)
     setDepartment(currentUser.dept)
     setCategory('')
     setAmount('')
     setExpenseDate('')
     setRemark('')
     setReceipts([])
-    setCurrentStep(1)
+    setEditingClaimId(null)
+    setOcrStatus(null)
+    setOcrResult(null)
+    setOcrFileName('')
+    setDragOver(false)
     setActionMessage('')
   }
 
   const removeReceipt = (fileName) => {
     setReceipts((prev) => prev.filter((f) => f !== fileName))
+  }
+
+  /* ===== PaddleOCR v4 分析：自動帶入日期與金額 ===== */
+  const analyzeReceipt = async (file) => {
+    setOcrStatus('loading')
+    setOcrFileName(file.name)
+    setOcrResult(null)
+    try {
+      const result = await processReceiptOCR(file)
+      setOcrResult(result)
+      setOcrStatus('done')
+      setExpenseDate(result.extractedDate)
+      setAmount(String(result.extractedAmount))
+      setActionMessage(`已由 OCR 自動帶入，可手動修正。`)
+    } catch (err) {
+      setOcrStatus('error')
+      setActionMessage(`OCR / AI 分析失敗：${err.message}`)
+    }
+  }
+
+  /* 追加 / 重新上傳單據檔案（僅記錄檔名，實際後端上傳留待串接） */
+  const appendFiles = (files) => {
+    if (!files || files.length === 0) return null
+    setReceipts((prev) => {
+      const existing = new Set(prev)
+      const names = Array.from(files).map((f) => f.name)
+      return [...prev, ...names.filter((n) => !existing.has(n))]
+    })
+    setActionMessage(`已追加 ${files.length} 個檔案。`)
+    // 對該批第一張圖片執行 PaddleOCR 辨識
+    const imageFile = Array.from(files).find((f) => f.type && f.type.startsWith('image/'))
+    if (imageFile) {
+      analyzeReceipt(imageFile)
+    }
+    return imageFile
+  }
+
+  const handleFileSelect = (e) => {
+    const files = Array.from(e.target.files || [])
+    if (files.length === 0) return
+    appendFiles(files)
+    e.target.value = ''
+  }
+
+  /* 拖拽上傳 */
+  const handleDrop = (e) => {
+    e.preventDefault()
+    setDragOver(false)
+    const files = Array.from(e.dataTransfer.files || [])
+    if (files.length === 0) return
+    appendFiles(files)
+  }
+
+  /* 從「我的申請紀錄」重新編輯被駁回的單據（補交文件） */
+  const startResubmit = (claim) => {
+    setEditingClaimId(claim.id)
+    setDepartment(claim.department || currentUser.dept)
+    setCategory(claim.category || '')
+    setAmount(String(claim.amount ?? ''))
+    setExpenseDate(claim.date || '')
+    setRemark(claim.remark || '')
+    setReceipts(claim.receipts || [])
+    setOcrStatus(null)
+    setOcrResult(null)
+    setOcrFileName('')
+    setDragOver(false)
+    setActiveModule('new-claim')
+    setActionMessage(`正在重新編輯 ${claim.id}：修改內容並補交文件後，按「重新提交」即可再次送審。`)
   }
 
   const saveDraft = () => {
@@ -357,6 +463,34 @@ function App() {
       setActionMessage('請先填寫費用類別、金額與單據日期再遞交申請。')
       return
     }
+
+    // 重新提交 / 補交文件模式：更新原單據，狀態重置為待 GM 審批
+    if (editingClaimId) {
+      setClaims((prev) =>
+        prev.map((c) =>
+          c.id === editingClaimId
+            ? {
+                ...c,
+                department,
+                category,
+                amount: amountNum,
+                date: expenseDate,
+                remark,
+                receipts: [...receipts],
+                status: 'pending_1st',
+                rejectionReason: null,
+                rejectedBy: null,
+                rejectedAt: null,
+                resubmittedCount: (c.resubmittedCount || 0) + 1,
+              }
+            : c,
+        ),
+      )
+      setActionMessage(`單據 ${editingClaimId} 已重新提交，狀態重置為「待 GM 審批」，重新進入審批流程。`)
+      clearForm()
+      return
+    }
+
     const newClaim = {
       id: `CL-2026-${String(claims.length + 5).padStart(3, '0')}`,
       applicant: currentUser.name,
@@ -366,47 +500,111 @@ function App() {
       amount: amountNum,
       date: expenseDate,
       remark,
+      receipts: [...receipts],
       status: 'pending_1st',
     }
     setClaims((prev) => [newClaim, ...prev])
     setActionMessage(
-      `申請已成功遞交（${newClaim.id}），狀態為「待部門主管審批」。`,
+      `申請已成功遞交（${newClaim.id}），狀態為「待 GM 審批」。`,
     )
     clearForm()
   }
 
-  /* ===== 多級審批動作 ===== */
+  /* ===== 多級審批動作（依金額分流） ===== */
+  const getNextStatus = (claim) => {
+    if (claim.status === 'pending_1st') {
+      // 低於門檻：跳過 CEO（第 2 層），直接到最終批核（第 3 層 / Finance）
+      return claim.amount < ROUTING_THRESHOLD ? 'pending_3rd' : 'pending_2nd'
+    }
+    if (claim.status === 'pending_2nd') return 'pending_3rd'
+    return 'approved'
+  }
+
   const handleApprove = (id) => {
     const claim = claims.find((c) => c.id === id)
     if (!claim) return
-    if (claim.status === 'pending_1st' && currentUser.isLevel1) {
-      setClaims((prev) =>
-        prev.map((c) => (c.id === id ? { ...c, status: 'pending_2nd' } : c)),
-      )
-      setActionMessage(`單據 ${id} 已通過第 1 層審批，狀態變更為「待財務審批」。`)
-    } else if (claim.status === 'pending_2nd' && currentUser.isLevel2) {
+    const isAuthorized =
+      (claim.status === 'pending_1st' && currentUser.isLevel1) ||
+      (claim.status === 'pending_2nd' && currentUser.isLevel2) ||
+      (claim.status === 'pending_3rd' && currentUser.isLevel3)
+    if (!isAuthorized) {
+      setActionMessage(`您沒有權限審批單據 ${id} 的目前階段（${STATUS_CONFIG[claim.status].label}）。`)
+      return
+    }
+    const nextStatus = getNextStatus(claim)
+    if (nextStatus === 'approved') {
       setClaims((prev) =>
         prev.map((c) => (c.id === id ? { ...c, status: 'approved' } : c)),
       )
-      setActionMessage(`單據 ${id} 已完成全部審批，狀態為「已完成核准」。`)
+      setActionMessage(`單據 ${id} 已完成全部審批並放款，狀態為「已核准放款」。`)
+    } else {
+      setClaims((prev) =>
+        prev.map((c) => (c.id === id ? { ...c, status: nextStatus } : c)),
+      )
+      setActionMessage(`單據 ${id} 已通過審批，狀態變更為「${STATUS_CONFIG[nextStatus].label}」。`)
     }
   }
 
+  /* ===== 駁回流程（需填寫駁回原因，Modal 彈窗） ===== */
   const handleReject = (id) => {
-    setClaims((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, status: 'rejected' } : c)),
-    )
-    setActionMessage(`單據 ${id} 已駁回。`)
+    setRejectTargetId(id)
+    setRejectionReason('')
+    setRejectError('')
   }
 
-  /* ===== 權限管理動作（Level 3） ===== */
+  const cancelReject = () => {
+    setRejectTargetId(null)
+    setRejectionReason('')
+    setRejectError('')
+  }
+
+  const confirmReject = () => {
+    const reason = rejectionReason.trim()
+    if (!reason) {
+      setRejectError('請輸入駁回原因（必填）。')
+      return
+    }
+    const claim = claims.find((c) => c.id === rejectTargetId)
+    if (!claim) return
+    const isAuthorized =
+      (claim.status === 'pending_1st' && currentUser.isLevel1) ||
+      (claim.status === 'pending_2nd' && currentUser.isLevel2) ||
+      (claim.status === 'pending_3rd' && currentUser.isLevel3)
+    if (!isAuthorized) {
+      setActionMessage(`您沒有權限駁回單據 ${rejectTargetId} 的目前階段。`)
+      cancelReject()
+      return
+    }
+    setClaims((prev) =>
+      prev.map((c) =>
+        c.id === rejectTargetId
+          ? {
+              ...c,
+              status: 'rejected',
+              rejectionReason: reason,
+              rejectedBy: `${currentUser.name}（${currentUser.roleLabel}）`,
+              rejectedAt: new Date().toISOString(),
+            }
+          : c,
+      ),
+    )
+    setActionMessage(`單據 ${rejectTargetId} 已被駁回：${reason}`)
+    cancelReject()
+  }
+
+  /* ===== 權限管理動作（Level 4 Finance & Admin） ===== */
   const handleTogglePermission = (empId, tier) => {
     setEmployees((prev) =>
       prev.map((emp) => (emp.id === empId ? { ...emp, [tier]: !emp[tier] } : emp)),
     )
     const emp = employees.find((e) => e.id === empId)
     if (emp) {
-      const tierLabel = tier === 'isLevel1' ? '第 1 層審批權限' : '第 2 層審批權限'
+      const tierLabels = {
+        isLevel1: '第 1 層審批權限',
+        isLevel2: '第 2 層審批權限',
+        isLevel3: '第 3 層審批權限',
+      }
+      const tierLabel = tierLabels[tier] || '審批權限'
       setActionMessage(`${emp.name} 的${tierLabel}已${emp[tier] ? '移除' : '啟用'}。`)
     }
   }
@@ -480,17 +678,12 @@ function App() {
   const visibleMenu = MENU_ITEMS.filter((item) => item.minLevel <= currentUser.accessLevel)
   const pendingForUser = claims.filter((c) => c.status === 'pending_1st' && currentUser.isLevel1)
   const pending2ndForUser = claims.filter((c) => c.status === 'pending_2nd' && currentUser.isLevel2)
-  const visiblePending =
-    currentUser.isLevel1 && currentUser.isLevel2
-      ? [...pendingForUser, ...pending2ndForUser]
-      : currentUser.isLevel1
-        ? pendingForUser
-        : currentUser.isLevel2
-          ? pending2ndForUser
-          : []
+  const pending3rdForUser = claims.filter((c) => c.status === 'pending_3rd' && currentUser.isLevel3)
+  const visiblePending = [...pendingForUser, ...pending2ndForUser, ...pending3rdForUser]
   const myClaims = claims.filter((c) => c.applicant === currentUser.name)
   const level1Count = employees.filter((e) => e.isLevel1).length
   const level2Count = employees.filter((e) => e.isLevel2).length
+  const level3Count = employees.filter((e) => e.isLevel3).length
   const route = approvalRoute()
 
   return (
@@ -555,7 +748,7 @@ function App() {
         <header className="topbar">
           <div className="topbar__title">
             <h2 className="topbar__heading">Petty Cash Reimbursement</h2>
-            <p className="topbar__sub">雙層多級審批架構 · Two-Tier Multi-Stage Approval</p>
+            <p className="topbar__sub">四層角色・動態金額分流審批 · 4-Tier Roles · Amount-Based Routing</p>
           </div>
           <div className="auth-bar">
             <div className="auth-bar__user">
@@ -583,45 +776,30 @@ function App() {
         {/* 操作結果提示 */}
         {actionMessage && <div className="action-toast">{actionMessage}</div>}
 
-        {/* ===== 填寫報銷單 ===== */}
+        {/* ===== 填寫報銷單（單頁表單） ===== */}
         {activeModule === 'new-claim' && (
           <>
-            <nav className="stepper" aria-label="申請進度">
-              {STEPS.map((step, index) => (
-                <div
-                  key={step.id}
-                  className={`stepper__item ${
-                    currentStep === step.id ? 'stepper__item--active' : ''
-                  } ${currentStep > step.id ? 'stepper__item--done' : ''}`}
-                >
-                  <div className="stepper__circle">
-                    {currentStep > step.id ? <IconCheck size={16} /> : <span>{step.id}</span>}
-                  </div>
-                  <span className="stepper__label">Step {step.id}（{step.label}）</span>
-                  {index < STEPS.length - 1 && (
-                    <span className="stepper__connector" aria-hidden="true" />
-                  )}
-                </div>
-              ))}
-            </nav>
-
             <section className="pc-card">
               <div className="pc-card__header">
-                <h2 className="pc-card__title">Petty Cash 報銷申請表</h2>
-                <button type="button" className="btn-load" onClick={loadExample}>
-                  載入 Petty Cash 範例
-                </button>
+                <h2 className="pc-card__title">
+                  {editingClaimId ? `重新編輯 / 補交文件（${editingClaimId}）` : 'Petty Cash 報銷申請表'}
+                </h2>
+                {!editingClaimId && (
+                  <button type="button" className="btn-load" onClick={loadExample}>
+                    載入 Petty Cash 範例
+                  </button>
+                )}
               </div>
 
               <div className="pc-form-grid">
                 <div className="pc-field">
-                  <label htmlFor="applicant">申請人</label>
+                  <label htmlFor="applicant">申請人（鎖定為目前登入帳號）</label>
                   <input
                     id="applicant"
                     type="text"
-                    value={applicant}
-                    onChange={(e) => setApplicant(e.target.value)}
-                    placeholder={currentUser.name}
+                    value={currentUser.name}
+                    readOnly
+                    title="申請人鎖定為目前登入帳號"
                   />
                 </div>
                 <div className="pc-field">
@@ -684,14 +862,73 @@ function App() {
               {/* 單據上載區 */}
               <div className="pc-field pc-field--full">
                 <label>單據上載</label>
-                <div className="upload-area">
-                  <div className="upload-area__inner">
+                <div
+                  className={`upload-area ${dragOver ? 'upload-area--dragging' : ''}`}
+                  onDragOver={(e) => {
+                    e.preventDefault()
+                    setDragOver(true)
+                  }}
+                  onDragLeave={() => setDragOver(false)}
+                  onDrop={handleDrop}
+                >
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    multiple
+                    accept="image/*,.pdf,.jpg,.jpeg,.png"
+                    className="hidden-file-input"
+                    onChange={handleFileSelect}
+                    aria-label="上傳單據檔案"
+                  />
+                  <div
+                    className="upload-area__inner"
+                    onClick={() => fileInputRef.current && fileInputRef.current.click()}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        fileInputRef.current && fileInputRef.current.click()
+                      }
+                    }}
+                  >
                     <span className="upload-area__icon"><IconUpload size={26} /></span>
                     <p className="upload-area__text">
                       拖曳檔案至此，或 <span className="upload-area__link">瀏覽檔案</span>
                     </p>
                     <p className="upload-area__hint">支援 PDF / JPG / PNG，最多 5MB</p>
+                    <button
+                      type="button"
+                      className="btn-upload"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        fileInputRef.current && fileInputRef.current.click()
+                      }}
+                    >
+                      ＋ 上傳 / 追加檔案
+                    </button>
                   </div>
+
+                  {/* OCR / AI 分析狀態 */}
+                  {ocrStatus === 'loading' && (
+                    <p className="ocr-badge ocr-badge--loading">✨ OCR / AI 引擎分析中...</p>
+                  )}
+                  {ocrStatus === 'done' && ocrResult && (
+                    <div className="ocr-result">
+                      <span className={`ocr-badge ${ocrResult.engine === 'gemini' ? 'ocr-badge--gemini' : 'ocr-badge--mock'}`}>
+                        {ocrResult.engine === 'gemini'
+                          ? '✨ Google Gemini AI 辨識成功'
+                          : '✨ OCR 辨識成功 (Local Demo 模式)'}
+                      </span>
+                      <span className="ocr-meta">
+                        {ocrFileName} · 商戶：{ocrResult.merchant} · Confidence: {ocrResult.confidence}%
+                      </span>
+                      <span className="ocr-hint">已由 OCR 自動帶入，可手動修正</span>
+                    </div>
+                  )}
+                  {ocrStatus === 'error' && (
+                    <p className="ocr-badge ocr-badge--error">⚠️ OCR / AI 分析失敗</p>
+                  )}
                   {receipts.length > 0 && (
                     <ul className="file-list">
                       {receipts.map((file) => (
@@ -714,14 +951,16 @@ function App() {
               </div>
             </section>
 
-            {/* 金額門檻自動分流卡片（雙層） */}
+            {/* 金額門檻自動分流卡片（四層角色・動態金額分流） */}
             <section className="routing-card">
               <h2 className="routing-card__title">審批路徑預覽</h2>
               {route.length > 0 ? (
                 <>
                   <p className="routing-card__tier">
                     目前金額 HK${amountNum.toLocaleString()}
-                    <span className="routing-card__tier-badge">雙層審批</span>
+                    <span className="routing-card__tier-badge">
+                      {amountNum < ROUTING_THRESHOLD ? '低於 $10,000 · 免 CEO 審批' : '達 $10,000 · 需 CEO 審批'}
+                    </span>
                   </p>
                   <div className="routing-track">
                     {route.map((step) => {
@@ -742,13 +981,21 @@ function App() {
                   </div>
                 </>
               ) : (
-                <p className="routing-card__empty">
-                  輸入報銷金額以自動預覽雙層審批路徑。
-                  <br />
-                  <span className="routing-card__rules">
-                    所有單據一律經第 1 層部門主管 → 第 2 層財務經理兩層審批
-                  </span>
-                </p>
+                <>
+                  <p className="routing-card__empty">
+                    輸入報銷金額以自動預覽動態審批路徑。
+                  </p>
+                  <ul className="routing-card__rules-list">
+                    <li className="routing-card__rule-item">
+                      <span className="routing-card__rule-amount">金額 &lt; $10,000</span>
+                      <span>GM 審核 → Finance 最終批核</span>
+                    </li>
+                    <li className="routing-card__rule-item">
+                      <span className="routing-card__rule-amount">金額 &ge; $10,000</span>
+                      <span>GM 審核 → CEO 審核 → Finance 最終批核</span>
+                    </li>
+                  </ul>
+                </>
               )}
             </section>
 
@@ -756,7 +1003,9 @@ function App() {
             <footer className="pc-footer">
               <button type="button" className="btn-save" onClick={saveDraft}>儲存草稿</button>
               <button type="button" className="btn-clear" onClick={clearForm}>清除表單</button>
-              <button type="button" className="btn-submit" onClick={submitForm}>下一步 / 遞交申請</button>
+              <button type="button" className="btn-submit" onClick={submitForm}>
+                {editingClaimId ? '重新提交 / 補交文件' : '下一步 / 遞交申請'}
+              </button>
             </footer>
           </>
         )}
@@ -779,6 +1028,7 @@ function App() {
                     <th>單據日期</th>
                     <th>報銷事由</th>
                     <th>狀態</th>
+                    <th>操作</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -795,6 +1045,22 @@ function App() {
                           <span className={`status-badge ${status.className}`} title={status.en}>
                             {status.label}
                           </span>
+                          {c.status === 'rejected' && (
+                            <div className="rejection-note">
+                              {c.rejectionReason && <p className="rejection-note__reason">駁回原因：{c.rejectionReason}</p>}
+                              {c.rejectedBy && <p className="rejection-note__by">駁回者：{c.rejectedBy}</p>}
+                              {c.resubmittedCount > 0 && <p className="rejection-note__by">已重新提交 {c.resubmittedCount} 次</p>}
+                            </div>
+                          )}
+                        </td>
+                        <td>
+                          {c.status === 'rejected' ? (
+                            <button type="button" className="btn-resubmit" onClick={() => startResubmit(c)}>
+                              <IconUpload size={14} /> 重新編輯 / 補交文件
+                            </button>
+                          ) : (
+                            <span className="table-muted">—</span>
+                          )}
                         </td>
                       </tr>
                     )
@@ -813,10 +1079,13 @@ function App() {
               <div className="pending-meta">
                 <span className="pending-count">共 {visiblePending.length} 筆待處理</span>
                 {currentUser.isLevel1 && (
-                  <span className="tier-chip tier-chip--1st">第 1 層：部門主管</span>
+                  <span className="tier-chip tier-chip--1st">第 1 層審批：GM</span>
                 )}
                 {currentUser.isLevel2 && (
-                  <span className="tier-chip tier-chip--2nd">第 2 層：財務經理</span>
+                  <span className="tier-chip tier-chip--2nd">第 2 層審批：CEO</span>
+                )}
+                {currentUser.isLevel3 && (
+                  <span className="tier-chip tier-chip--3rd">第 3 層審批：Finance 最終批核</span>
                 )}
               </div>
             </div>
@@ -884,6 +1153,7 @@ function App() {
               <div className="pending-meta">
                 <span className="pending-count">{level1Count} 位一級審批人</span>
                 <span className="pending-count">{level2Count} 位二級審批人</span>
+                <span className="pending-count">{level3Count} 位終審審批人</span>
               </div>
             </div>
             <table className="data-table">
@@ -894,6 +1164,7 @@ function App() {
                   <th>存取層級</th>
                   <th>第 1 層審批權限</th>
                   <th>第 2 層審批權限</th>
+                  <th>第 3 層審批權限</th>
                 </tr>
               </thead>
               <tbody>
@@ -913,26 +1184,18 @@ function App() {
                           {accessLabel.label} {accessLabel.role}
                         </span>
                       </td>
-                      <td>
-                        <label className="toggle-switch">
-                          <input
-                            type="checkbox"
-                            checked={emp.isLevel1}
-                            onChange={() => handleTogglePermission(emp.id, 'isLevel1')}
-                          />
-                          <span className="toggle-switch__slider" />
-                        </label>
-                      </td>
-                      <td>
-                        <label className="toggle-switch">
-                          <input
-                            type="checkbox"
-                            checked={emp.isLevel2}
-                            onChange={() => handleTogglePermission(emp.id, 'isLevel2')}
-                          />
-                          <span className="toggle-switch__slider" />
-                        </label>
-                      </td>
+                      {['isLevel1', 'isLevel2', 'isLevel3'].map((tier) => (
+                        <td key={tier}>
+                          <label className="toggle-switch">
+                            <input
+                              type="checkbox"
+                              checked={emp[tier]}
+                              onChange={() => handleTogglePermission(emp.id, tier)}
+                            />
+                            <span className="toggle-switch__slider" />
+                          </label>
+                        </td>
+                      ))}
                     </tr>
                   )
                 })}
@@ -941,6 +1204,43 @@ function App() {
           </section>
         )}
       </main>
+
+      {/* ===== 駁回原因 Modal ===== */}
+      {rejectTargetId && (
+        <div className="modal-overlay" onClick={cancelReject}>
+          <div
+            className="modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label="輸入駁回原因"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="modal__title">駁回單據</h3>
+            <p className="modal__desc">
+              確定要駁回 <strong>{rejectTargetId}</strong> 嗎？駁回後申請人需重新編輯並補交文件。
+            </p>
+            <div className="pc-field">
+              <label htmlFor="rejectionReason">駁回原因（必填）</label>
+              <textarea
+                id="rejectionReason"
+                rows="3"
+                value={rejectionReason}
+                onChange={(e) => {
+                  setRejectionReason(e.target.value)
+                  setRejectError('')
+                }}
+                placeholder="例如：請補上正本收據及發票"
+                autoFocus
+              />
+            </div>
+            {rejectError && <p className="modal__error">{rejectError}</p>}
+            <div className="modal__actions">
+              <button type="button" className="btn-clear" onClick={cancelReject}>取消</button>
+              <button type="button" className="btn-reject" onClick={confirmReject}>確認駁回</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

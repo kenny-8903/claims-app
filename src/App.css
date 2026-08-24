@@ -629,76 +629,6 @@
   color: var(--text-muted);
 }
 
-/* ===== Stepper ===== */
-.stepper {
-  display: flex;
-  align-items: center;
-  background: var(--card-bg);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 18px 24px;
-  margin-bottom: 24px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-}
-
-.stepper__item {
-  display: flex;
-  align-items: center;
-  flex: 1;
-  gap: 10px;
-}
-
-.stepper__circle {
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 15px;
-  font-weight: 600;
-  background: #e2e8f0;
-  color: var(--text-muted);
-  flex-shrink: 0;
-}
-
-.stepper__circle .icon {
-  color: #ffffff;
-}
-
-.stepper__label {
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--text-muted);
-  white-space: nowrap;
-}
-
-.stepper__connector {
-  flex: 1;
-  height: 2px;
-  background: #e2e8f0;
-  margin: 0 12px;
-}
-
-.stepper__item--active .stepper__circle {
-  background: var(--primary-green);
-  color: #ffffff;
-}
-
-.stepper__item--active .stepper__label {
-  color: var(--primary-green);
-  font-weight: 600;
-}
-
-.stepper__item--done .stepper__circle {
-  background: var(--primary-green-light);
-  color: #ffffff;
-}
-
-.stepper__item--done .stepper__label {
-  color: var(--text-main);
-}
-
 /* ===== Card ===== */
 .pc-card,
 .routing-card {
@@ -990,9 +920,36 @@
   line-height: 1.7;
 }
 
-.routing-card__rules {
+.routing-card__rules-list {
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.routing-card__rule-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
   font-size: 12.5px;
   color: var(--text-muted);
+  background: #f8fafc;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+
+.routing-card__rule-amount {
+  flex-shrink: 0;
+  font-weight: 700;
+  font-size: 12px;
+  white-space: nowrap;
+  color: var(--primary-green);
+  background: rgba(11, 93, 75, 0.08);
+  border-radius: 6px;
+  padding: 2px 8px;
 }
 
 /* ===== Footer buttons ===== */
@@ -1123,18 +1080,25 @@
   white-space: nowrap;
 }
 
-/* 藍色：待部門主管審批（第 1 層） */
+/* 藍色：待 GM 審批（第 1 層） */
 .status-badge--pending-1st {
   background: #dbeafe;
   color: #1e40af;
   border: 1px solid #93c5fd;
 }
 
-/* 橘色：待財務審批（第 2 層） */
+/* 琥珀色：待 CEO 審批（第 2 層） */
 .status-badge--pending-2nd {
   background: #ffedd5;
   color: #9a3412;
   border: 1px solid #fdba74;
+}
+
+/* 紫色：待財務最終批核（第 3 層 / 終審） */
+.status-badge--pending-3rd {
+  background: #ede9fe;
+  color: #5b21b6;
+  border: 1px solid #c4b5fd;
 }
 
 /* 綠色：已完成核准 */
@@ -1172,6 +1136,12 @@
   background: #ffedd5;
   color: #9a3412;
   border: 1px solid #fdba74;
+}
+
+.tier-chip--3rd {
+  background: #ede9fe;
+  color: #5b21b6;
+  border: 1px solid #c4b5fd;
 }
 
 .pending-meta {
@@ -1300,6 +1270,12 @@
   border: 1px solid #86efac;
 }
 
+.role-tag--level-4 {
+  background: #ede9fe;
+  color: #5b21b6;
+  border: 1px solid #c4b5fd;
+}
+
 /* ===== Toggle switch ===== */
 .toggle-switch {
   position: relative;
@@ -1408,16 +1384,221 @@
     align-items: flex-start;
     gap: 8px;
   }
+}
 
-  .stepper {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 12px;
+/* ===== Reject & Resubmit（駁回與重新補交） ===== */
+.btn-resubmit {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #fff7ed;
+  color: #c2410c;
+  border: 1px solid #fdba74;
+  border-radius: 8px;
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s;
+}
+
+.btn-resubmit:hover {
+  background: #ffedd5;
+}
+
+.rejection-note {
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.rejection-note__reason {
+  margin: 0;
+  font-size: 12px;
+  color: #b91c1c;
+  font-weight: 600;
+}
+
+.rejection-note__by {
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.table-muted {
+  color: #cbd5e1;
+  font-size: 13px;
+}
+
+.hidden-file-input {
+  display: none;
+}
+
+.btn-upload {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 10px;
+  background: #eef2ff;
+  color: #3730a3;
+  border: 1px dashed #a5b4fc;
+  border-radius: 8px;
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s;
+}
+
+.btn-upload:hover {
+  background: #e0e7ff;
+}
+
+/* ===== 駁回原因 Modal ===== */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 100;
+  animation: modalFadeIn 0.2s ease-in-out;
+}
+
+@keyframes modalFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
   }
-
-  .stepper__connector {
-    width: 2px;
-    height: 16px;
-    margin: 0 17px;
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
+
+.modal {
+  width: 100%;
+  max-width: 440px;
+  background: #ffffff;
+  border-radius: 14px;
+  padding: 24px;
+  box-shadow: 0 20px 50px -12px rgba(15, 23, 42, 0.35);
+}
+
+.modal__title {
+  margin: 0 0 8px;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.modal__desc {
+  margin: 0 0 18px;
+  font-size: 13.5px;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+.modal__error {
+  margin: 10px 0 0;
+  font-size: 12.5px;
+  color: #dc2626;
+  font-weight: 600;
+}
+
+.modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+
+/* ===== PaddleOCR 辨識 ===== */
+.upload-area--dragging {
+  border-color: var(--primary-green-light);
+  background: #ecfdf5;
+}
+
+.ocr-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #3730a3;
+  background: #eef2ff;
+  border: 1px solid #c7d2fe;
+  border-radius: 999px;
+  padding: 5px 12px;
+}
+
+.ocr-badge--loading {
+  color: #92400e;
+  background: #fffbeb;
+  border-color: #fcd34d;
+  animation: ocrPulse 1.4s ease-in-out infinite;
+}
+
+.ocr-badge--error {
+  color: #b91c1c;
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+
+@keyframes ocrPulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.ocr-result {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.ocr-result .ocr-badge {
+  margin-top: 0;
+}
+
+.ocr-hint {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #15803d;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+  padding: 4px 10px;
+}
+
+
+.ocr-badge--gemini {
+  color: #1e40af;
+  background: linear-gradient(135deg, #dbeafe, #e0f2fe);
+  border-color: #93c5fd;
+}
+
+.ocr-badge--mock {
+  color: #3730a3;
+  background: #eef2ff;
+  border-color: #c7d2fe;
+}
+
+.ocr-meta {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
