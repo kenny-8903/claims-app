@@ -102,8 +102,10 @@ Each story is logged in the format:
   - FR-502: Server-side call to Gemini 1.5 Flash Vision using `process.env.GEMINI_API_KEY`, bypassing browser-side HK geo-restriction.
   - FR-503: Gemini prompt returns strict JSON `{"amount", "date", "merchant"}`; server validates and normalizes the response.
   - FR-504: Frontend `processReceiptOCR(file)` POSTs the base64 image to `/api/ocr` and fills the form on success.
-  - FR-505: UI shows "✨ Google Gemini AI 辨識成功 (Vercel Serverless)" on server success, else falls back to "Local Demo 模式".
+  - FR-505: UI shows `statusLabel` "✨ Google Gemini AI 辨識成功 (Live API)" on server success, else falls back to "Local Demo 模式".
   - FR-506: `vercel.json` catch-all rewrite excludes `/api/*` so the Serverless Function is reachable.
+  - FR-507: Server uses the standard Gemini REST endpoint `.../models/gemini-1.5-flash:generateContent?key=...` with `contents` + `inline_data` (Base64) payload, and strips Markdown ```json fences before `JSON.parse`.
+  - FR-508: Frontend logs `/api/ocr` response status and data to the console (`console.error` on failure) for debugging.
 
 - **Non-Functional Requirements**
   - NFR-501: Any `/api/ocr` failure (network, 4xx/5xx, missing key) falls back to the Local mock engine without breaking the upload flow.
@@ -112,6 +114,7 @@ Each story is logged in the format:
 - **Acceptance Criteria**
   - AC-501: `api/ocr.js` passes `node --check` and returns 400/405/413/500 correctly on invalid inputs.
   - AC-502: Local dev (no `/api/ocr`) smoothly degrades to the mock engine with the Local Demo tag.
+  - AC-503: Handler success path returns extracted fields from a Markdown-fenced Gemini JSON response; failure path forwards the Gemini error message.
 
 - **Acceptance Criteria**
   - AC-101: Logging in as Testing1 shows only own claims and no approval queue.
@@ -178,10 +181,13 @@ Each story is logged in the format:
 | FR-504         | Frontend POST /api/ocr + auto-fill               | OCR Service (Frontend)    | User wants Gemini results in the form         | Complete    |
 | FR-505         | "(Vercel Serverless)" tag + mock fallback        | OCR UI (Upload)           | User wants engine clarity                     | Complete    |
 | FR-506         | vercel.json excludes /api from catch-all rewrite | Vercel Config             | Developer wants reachable API endpoint        | Complete    |
+| FR-507         | Standard REST endpoint + inline_data + markdown cleanup | Vercel Serverless API | Developer wants spec-compliant integration   | Complete    |
+| FR-508         | Console logging of /api/ocr status & data       | OCR Service (Frontend)    | Developer wants debuggable API flow           | Complete    |
 | NFR-501        | Any /api/ocr failure falls back to mock          | OCR Service (Dual-mode)   | Developer wants robust upload flow            | Complete    |
 | NFR-502        | Body size cap within Vercel 4.5MB limit          | Vercel Serverless API     | Developer wants no platform 413s              | Complete    |
 | AC-501         | api/ocr.js validated (400/405/413/500 paths)     | Vercel Serverless API     | Developer wants correct error handling        | Verified    |
 | AC-502         | Local dev degrades to Local Demo tag             | OCR Service (Dual-mode)   | Developer wants offline demo                  | Verified    |
+| AC-503         | Success path + error path verified via mocks     | Vercel Serverless API     | Developer wants verified integration          | Verified    |
 
 ---
 

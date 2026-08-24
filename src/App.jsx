@@ -916,9 +916,10 @@ function App() {
                   {ocrStatus === 'done' && ocrResult && (
                     <div className="ocr-result">
                       <span className={`ocr-badge ${ocrResult.engine === 'gemini' ? 'ocr-badge--gemini' : 'ocr-badge--mock'}`}>
-                        {ocrResult.engine === 'gemini'
-                          ? '✨ Google Gemini AI 辨識成功 (Vercel Serverless)'
-                          : '✨ OCR 辨識成功 (Local Demo 模式)'}
+                        {ocrResult.statusLabel ||
+                          (ocrResult.engine === 'gemini'
+                            ? '✨ Google Gemini AI 辨識成功 (Live API)'
+                            : '✨ OCR 辨識成功 (Local Demo 模式)')}
                       </span>
                       <span className="ocr-meta">
                         {ocrFileName} · 商戶：{ocrResult.merchant} · Confidence: {ocrResult.confidence}%

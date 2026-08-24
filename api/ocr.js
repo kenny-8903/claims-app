@@ -17,16 +17,15 @@
  * ============================================================ */
 
 const GEMINI_MODEL = 'gemini-1.5-flash'
-const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`
 
 /* Vercel Node 執行環境的請求 body 上限為 4.5MB，此處保守限制 base64 長度 */
 const MAX_BASE64_LENGTH = 4 * 1024 * 1024
 
 /* 要求 Gemini 嚴格回傳 JSON（amount / date / merchant） */
 const GEMINI_PROMPT = [
-  'You are a receipt OCR extractor. Analyze the receipt image and return STRICT JSON only (no markdown, no extra text):',
-  '{"amount": <number in HKD with 2 decimals>, "date": "YYYY-MM-DD", "merchant": "<merchant name>"}',
-  'If a field is unreadable, return null for that field. Keep the JSON valid.',
+  '請讀取這張單據圖片，僅回傳 JSON：',
+  '{"amount": 數字, "date": "YYYY-MM-DD", "merchant": "商戶名稱"}',
+  '不要回傳任何 Markdown 標記或其他文字。若某欄位無法讀取，請回傳 null。',
 ].join('\n')
 
 function toDateString(date) {
@@ -85,7 +84,11 @@ export default async function handler(req, res) {
     const decoded = Buffer.from(image, 'base64')
     const mime = typeof mimeType === 'string' && mimeType.length > 0 ? mimeType : 'image/jpeg'
 
-    const geminiRes = await fetch(`${GEMINI_ENDPOINT}?key=${apiKey}`, {
+    // 標準 Google Gemini 1.5 Flash REST API Endpoint（key 以 query string 帶入）
+    const geminiUrl =
+      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`
+
+    const geminiRes = await fetch(geminiUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -93,6 +96,8 @@ export default async function handler(req, res) {
           {
             parts: [
               { text: GEMINI_PROMPT },
+              // Google v1beta REST 格式使用 inline_data（snake_case）；
+              // SDK 中的 inlineData（camelCase）在序列化後即對應此欄位。
               { inline_data: { mime_type: mime, data: decoded.toString('base64') } },
             ],
           },

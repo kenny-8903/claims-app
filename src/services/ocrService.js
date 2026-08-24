@@ -11,8 +11,8 @@
  *   1. 上傳單據時 POST /api/ocr（Vercel Serverless Function）。
  *      Server 端以 GEMINI_API_KEY 呼叫 Google Gemini 1.5 Flash Vision，
  *      徹底避開香港 IP 在前端瀏覽器直接呼叫 Gemini 的地區限制。
- *   2. 成功 → 回傳 { engine: 'gemini', source: 'vercel' }，UI 顯示
- *      「✨ Google Gemini AI 辨識成功 (Vercel Serverless)」。
+ *   2. 成功 → 回傳 { engine: 'gemini', source: 'vercel',
+ *      statusLabel: '✨ Google Gemini AI 辨識成功 (Live API)' }。
  *   3. 失敗（本機 dev 無 /api、API 錯誤、金鑰未設定等）→ 平滑降級至
  *      Local 擬真引擎（Smart Mock for HK Local），UI 顯示
  *      「✨ OCR 辨識成功 (Local Demo 模式)」。
@@ -60,6 +60,8 @@ function deriveMerchant(fileName) {
 async function callVercelOCR(file) {
   const base64 = await fileToBase64(file)
 
+  console.log('[ocrService] POST /api/ocr 送出請求，fileName:', file.name)
+
   const res = await fetch('/api/ocr', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -70,6 +72,8 @@ async function callVercelOCR(file) {
     }),
   })
 
+  console.log('[ocrService] /api/ocr Response status:', res.status)
+
   if (!res.ok) {
     let message = `OCR API 回應失敗（HTTP ${res.status}）`
     try {
@@ -78,10 +82,12 @@ async function callVercelOCR(file) {
     } catch {
       /* 忽略錯誤 body 解析失敗 */
     }
+    console.error('[ocrService] /api/ocr 失敗:', res.status, message)
     throw new Error(message)
   }
 
   const data = await res.json()
+  console.log('[ocrService] /api/ocr Response data:', data)
 
   // 驗證與正規化回傳欄位
   const amount = Number(data.extractedAmount)
@@ -109,6 +115,7 @@ async function callVercelOCR(file) {
     engine: 'gemini',
     model: data.model || 'gemini-1.5-flash',
     source: 'vercel',
+    statusLabel: '✨ Google Gemini AI 辨識成功 (Live API)',
   }
 }
 
@@ -161,6 +168,7 @@ async function runMockEngine(file) {
     engine: 'mock',
     model: 'local-smart-mock',
     source: 'local',
+    statusLabel: '✨ OCR 辨識成功 (Local Demo 模式)',
   }
 }
 
@@ -172,7 +180,7 @@ export async function processReceiptOCR(file) {
   try {
     return await callVercelOCR(file)
   } catch (err) {
-    console.warn('[ocrService] Vercel OCR API 呼叫失敗，平滑降級至 Local 擬真引擎。', err)
+    console.error('[ocrService] Vercel OCR API 呼叫失敗，平滑降級至 Local 擬真引擎。', err)
     // 2) 平滑降級至 Local 擬真引擎（本機 dev / API 失敗 / 金鑰未設定皆適用）
   }
 
