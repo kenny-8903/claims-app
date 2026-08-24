@@ -245,6 +245,8 @@ Each story is logged in the format:
 | FR-1001        | Gemini OCR moved to api/ocr.js serverless (env GEMINI_API_KEY, no client key exposure) | Vercel Serverless API | Developer wants to avoid Vite env + HK IP issues | Complete |
 | FR-1002        | Frontend fetch('/api/ocr') sends base64; success label "✨ Gemini 1.5 Flash AI 辨識成功" | OCR Service (Frontend) | Applicant wants server-side recognition | Complete |
 | AC-1001        | api/ocr.js handler verified via mocked Gemini response → 200 / 2018-12-24 / APOLLO SPECTRA | Vercel Serverless API | Developer wants verified integration | Verified |
+| FR-1101        | Gemini model-name fallback (flash-latest → -001 → flash → pro) resolves 404 | Vercel Serverless API | Developer wants max model compatibility | Complete |
+| AC-1101        | Fallback verified: flash-latest 404 → falls back to flash-001 → 200 | Vercel Serverless API | Developer wants working 404 recovery | Verified |
 
 ---
 

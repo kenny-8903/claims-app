@@ -1,9 +1,10 @@
 /* ============================================================
  * api/ocr.js — Vercel Serverless Function（Node.js）
  *
- * 使用官方 @google/generative-ai SDK 呼叫 Gemini 1.5 Flash Vision
+ * 使用官方 @google/generative-ai SDK 呼叫 Gemini Vision（多模型 fallback）
  * 在 Server 端辨識收據，徹底避開「香港 IP 在前端瀏覽器直連 Gemini」的限制，
  * 也避開 Vite 前端環境變數的困擾（API Key 僅存在 Server 端）。
+ * 模型名稱自動依序嘗試 gemini-1.5-flash-latest / -001 / flash / pro，解決 404。
  *
  * 環境變數：GEMINI_API_KEY（必要；未設定時自動讀取本地 .env.local）
  *   - 正式環境：Vercel Project → Settings → Environment Variables
@@ -38,19 +39,26 @@ function getGeminiApiKey() {
   return ''
 }
 
-/* Gemini 1.5 Flash 客戶端（Server 端初始化） */
+/* Gemini 客戶端（Server 端初始化） */
 const genAI = new GoogleGenerativeAI(getGeminiApiKey())
-const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' })
+
+/* 模型名稱 fallback（最大相容性：依序嘗試，避免單一模型名稱 404） */
+const GEMINI_MODELS = [
+  'gemini-1.5-flash-latest',
+  'gemini-1.5-flash-001',
+  'gemini-1.5-flash',
+  'gemini-1.5-pro',
+]
 
 /* Base64 字串長度上限（原圖約 3MB）；Vercel Node 函式 body 上限 4.5MB */
 const MAX_BASE64_LENGTH = 4 * 1024 * 1024
 /* 解碼後圖片位元組上限 */
 const MAX_IMAGE_BYTES = 3 * 1024 * 1024
 
-/* 要求 Gemini 強制回傳純 JSON */
+/* 要求 Gemini 強制回傳純 JSON（amount / date / merchant） */
 const OCR_PROMPT =
-  '請仔細分析這張收據，精準提取：金額 (amount: 數字)、日期 (date: YYYY-MM-DD)、商戶名稱 (merchant)，' +
-  '並強制以純 JSON 格式回傳：{"amount": 200, "date": "2018-12-24", "merchant": "APOLLO SPECTRA"}。' +
+  '請仔細分析這張收據，精準提取：金額 (amount: 數字)、日期 (date: YYYY-MM-DD)、商戶名稱 (merchant)。' +
+  '並強制以純 JSON 格式回傳：{"amount": 數字, "date": "YYYY-MM-DD", "merchant": "商戶名稱"}（例如：{"amount": 200, "date": "2018-12-24", "merchant": "APOLLO SPECTRA"}）。' +
   '不要回傳任何 Markdown 標記或其他文字。'
 
 function toDateString(date) {
@@ -73,6 +81,25 @@ function extractJson(text) {
     throw new Error('Gemini 回傳內容不含有效 JSON')
   }
   return JSON.parse(cleaned.slice(start, end + 1))
+}
+
+/* 依序嘗試各 Gemini 模型；成功回傳 { modelName, text }，全部失敗拋出最後錯誤 */
+async function generateWithFallback(base64, mimeType) {
+  let lastError = null
+  for (const modelName of GEMINI_MODELS) {
+    try {
+      const model = genAI.getGenerativeModel({ model: modelName })
+      const result = await model.generateContent([
+        OCR_PROMPT,
+        { inlineData: { data: base64, mimeType } },
+      ])
+      return { modelName, text: result.response.text() }
+    } catch (err) {
+      lastError = err
+      console.warn(`[ocr] 模型 ${modelName} 呼叫失敗（${err.message}），嘗試下一個...`)
+    }
+  }
+  throw lastError || new Error('所有 Gemini 模型皆呼叫失敗')
 }
 
 export default async function handler(req, res) {
@@ -134,14 +161,12 @@ export default async function handler(req, res) {
   }
 
   try {
-    // 官方 Gemini SDK：inlineData（Base64）送給 gemini-1.5-flash
-    const result = await model.generateContent([
-      OCR_PROMPT,
-      { inlineData: { data: decoded.toString('base64'), mimeType: mime } },
-    ])
-
-    const text = result.response.text()
-    console.log('[ocr] Gemini Raw Response:', text)
+    // 官方 Gemini SDK：inlineData（Base64），模型名稱自動 fallback
+    const { modelName, text } = await generateWithFallback(
+      decoded.toString('base64'),
+      mime,
+    )
+    console.log(`[ocr] Gemini (${modelName}) Raw Response:`, text)
 
     const parsed = extractJson(text)
 
@@ -168,7 +193,7 @@ export default async function handler(req, res) {
       merchant,
       confidence: 95,
       engine: 'gemini',
-      model: 'gemini-1.5-flash',
+      model: modelName,
       source: 'vercel',
     })
   } catch (err) {
