@@ -251,6 +251,9 @@ Each story is logged in the format:
 | FR-1202        | api/ocr.js accepts { imageUrl }; Groq (llama-3.2-11b-vision-preview) primary, Gemini fallback | Vercel Serverless API | Developer wants URL-based OCR | Complete |
 | FR-1203        | Auto-fill amount/date/merchant and save image URL in claim | OCR UI (Form) | Applicant wants one-click OCR | Complete |
 | AC-1201        | Handler verified: Groq path, Gemini fallback (download URL→base64), missing imageUrl 400 | Vercel Serverless API | Developer wants verified URL flow | Verified |
+| FR-1301        | api/ocr.js uses Gemini SDK (process.env.GEMINI_API_KEY, gemini-1.5-flash) with base64 input | Vercel Serverless API | Developer wants focused Gemini integration | Complete |
+| FR-1302        | Frontend reads VITE_SUPABASE_URL gracefully; missing env does not surface UI warnings | OCR Service (Frontend) | Developer wants clean UI | Complete |
+| AC-1301        | Handler + frontend verified: base64 flow, no-env fallback, auto-fill | OCR Service | Developer wants finalized integration | Verified |
 
 ---
 

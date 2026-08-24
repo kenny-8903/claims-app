@@ -1,6 +1,6 @@
 /* ============================================================
  * ocrService.js — 單據 OCR 辨識服務
- * Supabase Storage 上傳 → 圖片 URL → Vercel Serverless（api/ocr.js）
+ * Supabase Storage 上傳（可選）→ Base64 + imageUrl → Vercel Serverless
  *
  * 使用方式：
  *   import { processReceiptOCR } from '../services/ocrService'
@@ -8,33 +8,53 @@
  *     await processReceiptOCR(file)
  *
  * 運作邏輯：
- *   1. 將單據圖片上傳至 Supabase Storage 的 'receipts' bucket。
- *   2. 取得 Public URL（https://.../storage/v1/object/public/receipts/...）。
- *   3. POST /api/ocr 傳送 { imageUrl }，由後端（Groq / Gemini）辨識。
- *   4. 解析回傳 JSON → 自動填入金額 / 日期 / 商戶，並保存圖片 URL。
- *
- * 環境變數（.env.local，git-ignored）：
- *   VITE_SUPABASE_URL、VITE_SUPABASE_ANON_KEY（Supabase Project）
+ *   1. 若已設定 VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY，將圖片上傳至
+ *      'receipts' bucket 取得 Public URL（未設定則靜默略過，不顯示警告）。
+ *   2. POST /api/ocr 傳送 { image: base64, mimeType, fileName, imageUrl }，
+ *      由後端（Gemini 1.5 Flash）辨識。
+ *   3. 解析回傳 JSON → 自動填入金額 / 日期 / 商戶，並保存圖片 URL。
  * ============================================================ */
 
 import { createClient } from '@supabase/supabase-js'
 
 const SUPABASE_BUCKET = 'receipts'
 
-/* 建立 Supabase 客戶端（未設定 env 時拋出明確錯誤） */
-function getSupabase() {
-  const url = import.meta.env.VITE_SUPABASE_URL
-  const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
-  if (!url || !anonKey) {
-    throw new Error('請先設定 VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY（.env.local）')
+/* 讀取 Supabase 設定（未設定或不可用時回傳 null，前端不顯示任何警告） */
+function getSupabaseConfig() {
+  try {
+    const env = import.meta.env || {}
+    const url = env.VITE_SUPABASE_URL
+    const anonKey = env.VITE_SUPABASE_ANON_KEY
+    if (!url || !anonKey) return null
+    return { url, anonKey }
+  } catch {
+    return null
   }
-  return createClient(url, anonKey)
 }
 
-/* ===== 上傳圖片至 Supabase Storage → 回傳 Public URL ===== */
-async function uploadToSupabase(file) {
-  const supabase = getSupabase()
+/* 將圖片檔案轉為 base64（移除 data URL 前綴） */
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      const dataUrl = reader.result || ''
+      const base64 = dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl
+      resolve(base64)
+    }
+    reader.onerror = () => reject(new Error('無法讀取圖片檔案'))
+    reader.readAsDataURL(file)
+  })
+}
 
+/* ===== 上傳至 Supabase Storage（best-effort：未設定或失敗則略過） ===== */
+async function uploadToSupabase(file) {
+  const config = getSupabaseConfig()
+  if (!config) {
+    console.log('[ocrService] 未設定 VITE_SUPABASE_URL / ANON_KEY，略過 Supabase 上傳。')
+    return ''
+  }
+
+  const supabase = createClient(config.url, config.anonKey)
   const safeName = (file.name || 'receipt').replace(/[^\w.-]/g, '_')
   const filePath = `${Date.now()}-${safeName}`
 
@@ -47,8 +67,8 @@ async function uploadToSupabase(file) {
     })
 
   if (error || !data) {
-    console.error('[ocrService] Supabase 上傳失敗：', error)
-    throw new Error(`Supabase 上傳失敗：${error ? error.message : '未知錯誤'}`)
+    console.error('[ocrService] Supabase 上傳失敗（略過，改以 Base64 送後端）：', error)
+    return ''
   }
 
   const { data: publicUrlData } = supabase.storage.from(SUPABASE_BUCKET).getPublicUrl(filePath)
@@ -57,14 +77,14 @@ async function uploadToSupabase(file) {
   return imageUrl
 }
 
-/* ===== 呼叫 /api/ocr（傳送 imageUrl，由後端辨識） ===== */
-async function callOCRBackend(imageUrl) {
-  console.log('[ocrService] POST /api/ocr，imageUrl:', imageUrl)
+/* ===== 呼叫 /api/ocr（傳送 Base64 + imageUrl，由後端辨識） ===== */
+async function callOCRBackend(payload) {
+  console.log('[ocrService] POST /api/ocr，imageUrl:', payload.imageUrl || '（無）')
 
   const res = await fetch('/api/ocr', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ imageUrl }),
+    body: JSON.stringify(payload),
   })
 
   console.log('[ocrService] /api/ocr Response status:', res.status)
@@ -88,11 +108,17 @@ async function callOCRBackend(imageUrl) {
 
 /* ============================================================
  * 主要入口：processReceiptOCR(file)
- * 上傳 → URL → 後端辨識 → 回傳結果
  * ============================================================ */
 export async function processReceiptOCR(file) {
   const imageUrl = await uploadToSupabase(file)
-  const data = await callOCRBackend(imageUrl)
+  const base64 = await fileToBase64(file)
+
+  const data = await callOCRBackend({
+    image: base64,
+    mimeType: file.type || 'image/jpeg',
+    fileName: file.name || 'receipt',
+    imageUrl,
+  })
 
   // 驗證與正規化回傳欄位
   const amount = Number(data.extractedAmount)
@@ -117,13 +143,10 @@ export async function processReceiptOCR(file) {
     extractedDate,
     merchant,
     confidence,
-    imageUrl,
+    imageUrl: data.imageUrl || imageUrl || '',
     engine: data.engine || 'gemini',
     model: data.model || 'gemini-1.5-flash',
     source: 'vercel',
-    statusLabel:
-      data.engine === 'groq'
-        ? '✨ Groq Vision AI 辨識成功'
-        : '✨ Gemini 1.5 Flash AI 辨識成功',
+    statusLabel: '✨ Gemini 1.5 Flash AI 辨識成功',
   }
 }
