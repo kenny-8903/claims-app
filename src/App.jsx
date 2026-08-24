@@ -404,7 +404,7 @@ function App() {
     } catch (err) {
       setOcrStatus('error')
       setOcrError(err.message || '未知錯誤')
-      setActionMessage(`❌ 辨識失敗: ${err.message}`)
+      setActionMessage(`❌ API 失敗: ${err.message}`)
     }
   }
 
@@ -930,7 +930,7 @@ function App() {
                     </div>
                   )}
                   {ocrStatus === 'error' && (
-                    <p className="ocr-badge ocr-badge--error">❌ 辨識失敗: {ocrError || '未知錯誤'}</p>
+                    <p className="ocr-badge ocr-badge--error">❌ API 失敗: {ocrError || '未知錯誤'}</p>
                   )}
                   {receipts.length > 0 && (
                     <ul className="file-list">

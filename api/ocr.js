@@ -1,11 +1,11 @@
 /* ============================================================
  * api/ocr.js — Vercel Serverless Function（Node.js）
  *
- * 使用官方 openai SDK 呼叫 GitHub Models（GPT-4o-mini Vision）
- * baseURL: https://models.inference.ai.azure.com
- * 透過 Server 端呼叫，徹底避開「香港 IP 在前端瀏覽器直接呼叫 AI」的地區限制。
+ * 使用官方 @google/generative-ai SDK 呼叫 Gemini 1.5 Flash Vision
+ * 在 Server 端辨識收據，徹底避開「香港 IP 在前端瀏覽器直連 Gemini」的限制，
+ * 也避開 Vite 前端環境變數的困擾（API Key 僅存在 Server 端）。
  *
- * 環境變數：GITHUB_TOKEN（必要；未設定時自動讀取本地 .env.local）
+ * 環境變數：GEMINI_API_KEY（必要；未設定時自動讀取本地 .env.local）
  *   - 正式環境：Vercel Project → Settings → Environment Variables
  *   - 本地測試：寫入 .env.local 並使用 `vercel dev`（或 npx vercel dev）
  *
@@ -13,22 +13,22 @@
  *   { "image": "<base64 或 data URL>", "mimeType": "image/jpeg", "fileName": "x.jpg" }
  * 回應（成功 200）：
  *   { "extractedAmount": 200, "extractedDate": "2018-12-24",
- *     "merchant": "APOLLO", "confidence": 95, "engine": "github",
- *     "model": "gpt-4o-mini", "source": "vercel" }
+ *     "merchant": "APOLLO SPECTRA", "confidence": 95, "engine": "gemini",
+ *     "model": "gemini-1.5-flash", "source": "vercel" }
  * ============================================================ */
 
-import OpenAI from 'openai'
+import { GoogleGenerativeAI } from '@google/generative-ai'
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-/* 讀取 Token：優先環境變數 GITHUB_TOKEN，其次本地 .env.local（供 Node 直跑 / vercel dev） */
-function getGithubToken() {
-  if (process.env.GITHUB_TOKEN) return process.env.GITHUB_TOKEN.trim()
+/* 讀取 API Key：優先環境變數 GEMINI_API_KEY，其次本地 .env.local（供 Node 直跑 / vercel dev） */
+function getGeminiApiKey() {
+  if (process.env.GEMINI_API_KEY) return process.env.GEMINI_API_KEY.trim()
   try {
     const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
     const content = readFileSync(path.join(rootDir, '.env.local'), 'utf8')
-    const match = content.match(/^\s*GITHUB_TOKEN\s*=\s*(.+?)\s*$/m)
+    const match = content.match(/^\s*GEMINI_API_KEY\s*=\s*(.+?)\s*$/m)
     if (match) {
       return match[1].trim().replace(/^["']|["']$/g, '')
     }
@@ -38,23 +38,20 @@ function getGithubToken() {
   return ''
 }
 
-/* 官方 openai SDK 客戶端（GitHub Models 走 OpenAI 相容 endpoint） */
-const client = new OpenAI({
-  baseURL: 'https://models.inference.ai.azure.com',
-  apiKey: getGithubToken(),
-})
-
-const MODEL_NAME = 'gpt-4o-mini'
+/* Gemini 1.5 Flash 客戶端（Server 端初始化） */
+const genAI = new GoogleGenerativeAI(getGeminiApiKey())
+const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' })
 
 /* Base64 字串長度上限（原圖約 3MB）；Vercel Node 函式 body 上限 4.5MB */
 const MAX_BASE64_LENGTH = 4 * 1024 * 1024
 /* 解碼後圖片位元組上限 */
 const MAX_IMAGE_BYTES = 3 * 1024 * 1024
 
-/* 要求 AI 強制回傳 JSON（amount / date / merchant） */
+/* 要求 Gemini 強制回傳純 JSON */
 const OCR_PROMPT =
-  '請讀取這張單據圖片，僅回傳 JSON：{"amount": 數字, "date": "YYYY-MM-DD", "merchant": "商戶名稱"}。' +
-  '不要回傳任何 Markdown 標記或其他文字。若某欄位無法讀取，請回傳 null。'
+  '請仔細分析這張收據，精準提取：金額 (amount: 數字)、日期 (date: YYYY-MM-DD)、商戶名稱 (merchant)，' +
+  '並強制以純 JSON 格式回傳：{"amount": 200, "date": "2018-12-24", "merchant": "APOLLO SPECTRA"}。' +
+  '不要回傳任何 Markdown 標記或其他文字。'
 
 function toDateString(date) {
   const yyyy = date.getFullYear()
@@ -63,7 +60,7 @@ function toDateString(date) {
   return `${yyyy}-${mm}-${dd}`
 }
 
-/* 由模型回傳文字抽取 JSON（處理 ```json 程式碼塊） */
+/* 由 Gemini 回傳文字抽取 JSON（處理 ```json 程式碼塊） */
 function extractJson(text) {
   const cleaned = (text || '')
     .trim()
@@ -73,7 +70,7 @@ function extractJson(text) {
   const start = cleaned.indexOf('{')
   const end = cleaned.lastIndexOf('}')
   if (start === -1 || end === -1 || end <= start) {
-    throw new Error('模型回傳內容不含有效 JSON')
+    throw new Error('Gemini 回傳內容不含有效 JSON')
   }
   return JSON.parse(cleaned.slice(start, end + 1))
 }
@@ -137,38 +134,21 @@ export default async function handler(req, res) {
   }
 
   try {
-    const dataUrl = `data:${mime};base64,${decoded.toString('base64')}`
+    // 官方 Gemini SDK：inlineData（Base64）送給 gemini-1.5-flash
+    const result = await model.generateContent([
+      OCR_PROMPT,
+      { inlineData: { data: decoded.toString('base64'), mimeType: mime } },
+    ])
 
-    // 官方 openai SDK：Chat Completions（GPT-4o-mini Vision）
-    const completion = await client.chat.completions.create({
-      model: MODEL_NAME,
-      messages: [
-        {
-          role: 'user',
-          content: [
-            { type: 'text', text: OCR_PROMPT },
-            { type: 'image_url', image_url: { url: dataUrl } },
-          ],
-        },
-      ],
-      temperature: 0.1,
-      max_tokens: 256,
-      response_format: { type: 'json_object' },
-    })
-
-    const text =
-      (completion &&
-        completion.choices &&
-        completion.choices[0] &&
-        completion.choices[0].message &&
-        completion.choices[0].message.content) ||
-      ''
+    const text = result.response.text()
+    console.log('[ocr] Gemini Raw Response:', text)
 
     const parsed = extractJson(text)
 
     // 驗證與正規化
     const amount = Number(parsed.amount)
-    const extractedAmount = Number.isFinite(amount) && amount > 0 ? Math.round(amount * 100) / 100 : null
+    const extractedAmount =
+      Number.isFinite(amount) && amount > 0 ? Math.round(amount * 100) / 100 : null
 
     const dateMatch = /^\d{4}-\d{2}-\d{2}$/.test(String(parsed.date || ''))
     const extractedDate = dateMatch ? String(parsed.date) : toDateString(new Date())
@@ -179,7 +159,7 @@ export default async function handler(req, res) {
         : 'UNKNOWN'
 
     if (extractedAmount === null) {
-      return res.status(422).json({ error: '模型未能提取有效金額' })
+      return res.status(422).json({ error: 'Gemini 未能提取有效金額' })
     }
 
     return res.status(200).json({
@@ -187,17 +167,17 @@ export default async function handler(req, res) {
       extractedDate,
       merchant,
       confidence: 95,
-      engine: 'github',
-      model: MODEL_NAME,
+      engine: 'gemini',
+      model: 'gemini-1.5-flash',
       source: 'vercel',
     })
   } catch (err) {
     const message = (err && err.message) || String(err || '未知錯誤')
     const cause = err && err.cause ? err.cause : null
     const causeText = cause ? (cause.message || String(cause)) : ''
-    console.error('[ocr] OpenAI SDK 呼叫失敗：', message, causeText, err)
+    console.error('[ocr] Gemini 呼叫失敗：', message, causeText, err)
     return res.status(500).json({
-      error: `GitHub Models 呼叫失敗：${message}`,
+      error: `Gemini 呼叫失敗：${message}`,
       detail: causeText ? `${message}（原因：${causeText}）` : message,
     })
   }

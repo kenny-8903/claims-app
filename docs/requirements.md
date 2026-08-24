@@ -242,6 +242,9 @@ Each story is logged in the format:
 | FR-902         | inlineData (Base64) sent directly from the browser; strict JSON prompt | OCR Service (Gemini) | Applicant wants accurate extraction | Complete |
 | FR-903         | Success label "✨ Gemini 1.5 Flash AI 辨識成功" + auto-fill | OCR UI (Upload) | Applicant wants clear AI feedback | Complete |
 | AC-901         | processReceiptOCR verified via mocked Gemini response → 200 / 2018-12-24 / APOLLO SPECTRA | OCR Service (Gemini) | Developer wants verified integration | Verified |
+| FR-1001        | Gemini OCR moved to api/ocr.js serverless (env GEMINI_API_KEY, no client key exposure) | Vercel Serverless API | Developer wants to avoid Vite env + HK IP issues | Complete |
+| FR-1002        | Frontend fetch('/api/ocr') sends base64; success label "✨ Gemini 1.5 Flash AI 辨識成功" | OCR Service (Frontend) | Applicant wants server-side recognition | Complete |
+| AC-1001        | api/ocr.js handler verified via mocked Gemini response → 200 / 2018-12-24 / APOLLO SPECTRA | Vercel Serverless API | Developer wants verified integration | Verified |
 
 ---
 
