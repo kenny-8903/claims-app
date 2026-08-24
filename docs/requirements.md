@@ -18,6 +18,7 @@ Each story is logged in the format:
 - As an **applicant**, I want **to resubmit a rejected claim with edited documents** so that **I can fix issues and re-enter the approval flow**.
 - As an **applicant**, I want **receipt OCR to auto-fill date and amount** so that **I can submit claims faster and with fewer typos**.
 - As a **developer**, I want **a Local-mock / Vercel-real-AI dual-mode OCR** so that **local demos stay offline while production gets real Gemini AI**.
+- As a **developer**, I want **a Vercel Serverless OCR relay API** so that **Gemini is called from the server and the Hong Kong IP geo-restriction is bypassed**.
 
 ---
 
@@ -94,6 +95,24 @@ Each story is logged in the format:
   - AC-401: Uploading `apollo.jpg`/`taxi.jpg`/`mcdonald.jpg` in local dev fills the correct amounts and shows the Local Demo tag.
   - AC-402: Production build passes; Gemini path attempts real API and falls back on failure.
 
+### User Story: Vercel Serverless OCR Relay API (Bypass HK IP Restriction)
+
+- **Functional Requirements**
+  - FR-501: `api/ocr.js` — a Vercel Node Serverless Function accepting a base64 image via POST.
+  - FR-502: Server-side call to Gemini 1.5 Flash Vision using `process.env.GEMINI_API_KEY`, bypassing browser-side HK geo-restriction.
+  - FR-503: Gemini prompt returns strict JSON `{"amount", "date", "merchant"}`; server validates and normalizes the response.
+  - FR-504: Frontend `processReceiptOCR(file)` POSTs the base64 image to `/api/ocr` and fills the form on success.
+  - FR-505: UI shows "✨ Google Gemini AI 辨識成功 (Vercel Serverless)" on server success, else falls back to "Local Demo 模式".
+  - FR-506: `vercel.json` catch-all rewrite excludes `/api/*` so the Serverless Function is reachable.
+
+- **Non-Functional Requirements**
+  - NFR-501: Any `/api/ocr` failure (network, 4xx/5xx, missing key) falls back to the Local mock engine without breaking the upload flow.
+  - NFR-502: Request body capped (~3MB image) to stay within Vercel's 4.5MB Node function body limit.
+
+- **Acceptance Criteria**
+  - AC-501: `api/ocr.js` passes `node --check` and returns 400/405/413/500 correctly on invalid inputs.
+  - AC-502: Local dev (no `/api/ocr`) smoothly degrades to the mock engine with the Local Demo tag.
+
 - **Acceptance Criteria**
   - AC-101: Logging in as Testing1 shows only own claims and no approval queue.
   - AC-102: A claim of $9,999 shows GM → Finance path (CEO skipped); $10,000 shows GM → CEO → Finance.
@@ -153,6 +172,16 @@ Each story is logged in the format:
 | NFR-402        | API key not committed to git                     | Env Config                | Developer wants key secrecy                   | Verified    |
 | AC-401         | Mock filename rules verified in local dev        | OCR Service (Mock)        | Developer wants predictable local demo        | Verified    |
 | AC-402         | Production build passes + Gemini fallback path   | OCR Service (Dual-mode)   | Developer wants safe production behavior      | Verified    |
+| FR-501         | api/ocr.js Serverless Function (base64 POST)     | Vercel Serverless API     | Developer wants server-side OCR relay         | Complete    |
+| FR-502         | Server-side Gemini call via GEMINI_API_KEY       | Vercel Serverless API     | Developer wants HK geo-restriction bypass     | Complete    |
+| FR-503         | Strict JSON extraction + server validation       | Vercel Serverless API     | Developer wants reliable OCR data             | Complete    |
+| FR-504         | Frontend POST /api/ocr + auto-fill               | OCR Service (Frontend)    | User wants Gemini results in the form         | Complete    |
+| FR-505         | "(Vercel Serverless)" tag + mock fallback        | OCR UI (Upload)           | User wants engine clarity                     | Complete    |
+| FR-506         | vercel.json excludes /api from catch-all rewrite | Vercel Config             | Developer wants reachable API endpoint        | Complete    |
+| NFR-501        | Any /api/ocr failure falls back to mock          | OCR Service (Dual-mode)   | Developer wants robust upload flow            | Complete    |
+| NFR-502        | Body size cap within Vercel 4.5MB limit          | Vercel Serverless API     | Developer wants no platform 413s              | Complete    |
+| AC-501         | api/ocr.js validated (400/405/413/500 paths)     | Vercel Serverless API     | Developer wants correct error handling        | Verified    |
+| AC-502         | Local dev degrades to Local Demo tag             | OCR Service (Dual-mode)   | Developer wants offline demo                  | Verified    |
 
 ---
 

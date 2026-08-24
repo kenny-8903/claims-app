@@ -917,7 +917,7 @@ function App() {
                     <div className="ocr-result">
                       <span className={`ocr-badge ${ocrResult.engine === 'gemini' ? 'ocr-badge--gemini' : 'ocr-badge--mock'}`}>
                         {ocrResult.engine === 'gemini'
-                          ? '✨ Google Gemini AI 辨識成功'
+                          ? '✨ Google Gemini AI 辨識成功 (Vercel Serverless)'
                           : '✨ OCR 辨識成功 (Local Demo 模式)'}
                       </span>
                       <span className="ocr-meta">
